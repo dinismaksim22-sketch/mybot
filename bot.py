@@ -42,9 +42,7 @@ def start(message):
     "📩 Связь: @cripta527"
     )
 
-// =====================
-// 📩 ВСЕ СООБЩЕНИЯ
-// =====================
+# все сообщения
 bot.on('message', (msg) => {
     const id = msg.from.id;
     const text = msg.text;
