@@ -11,11 +11,10 @@ users = {}
 bans = {}
 mutes = {}
 
-# username -> id (главное хранилище)
 usernames = {}
 
 
-# 📌 универсальная регистрация пользователя
+# 📌 регистрация пользователя
 def register_user(message):
     user_id = message.from_user.id
     username = message.from_user.username
@@ -26,12 +25,11 @@ def register_user(message):
             "count": 0
         }
 
-    # сохраняем username всегда когда он есть
     if username:
         usernames[username.lower()] = user_id
 
 
-# /start
+# /start (ПОЛНЫЙ ТВОЙ ТЕКСТ)
 @bot.message_handler(commands=['start'])
 def start(message):
     register_user(message)
@@ -40,12 +38,24 @@ def start(message):
         message.chat.id,
         "Привет! 👋\n"
         "Ты попал в Б/У рынок ASTANA.\n\n"
-        "📌 Отправь объявление по форме.\n"
-        "❗ Сообщения проверяются модераторами"
+
+        "📌 Для подачи объявления обязательно укажи:\n"
+        "1. Куплю / Продам / Набор в ТК или в семью\n"
+        "2. Цена / Бюджет\n"
+        "3. Контакт (username, пример: @cripta527)\n\n"
+
+        "❗ Важно:\n"
+        "Без username заявка будет отклонена.\n"
+        "Все пункты должны быть заполнены по форме, иначе будет отказ.\n\n"
+
+        "🚫 Не спамить\n"
+        "Разрешена реклама семьи / СК / ТК и т.д.\n\n"
+
+        "📩 Связь: @cripta527"
     )
 
 
-# ВСЕ СООБЩЕНИЯ
+# 📩 ВСЕ СООБЩЕНИЯ
 @bot.message_handler(content_types=['text', 'photo', 'video'])
 def all_messages(message):
     register_user(message)
@@ -82,7 +92,7 @@ def all_messages(message):
         bot.send_message(user_id, "⛔ У вас мут")
         return
 
-    # регистрация счётчика
+    # 📊 count
     users[user_id]["count"] += 1
 
     bot.send_message(user_id, "⏳ Ожидайте, объявление отправлено")
@@ -95,6 +105,7 @@ def all_messages(message):
     for mod in MODS:
         bot.send_message(mod, info)
 
+        # 📸 фото
         if message.content_type == 'photo':
             bot.send_photo(
                 mod,
@@ -102,6 +113,7 @@ def all_messages(message):
                 caption=f"👤 @{message.from_user.username or 'нет_username'}\n🆔 ID: {user_id}"
             )
 
+        # 🎥 видео
         elif message.content_type == 'video':
             bot.send_video(
                 mod,
@@ -113,7 +125,7 @@ def all_messages(message):
             bot.forward_message(mod, message.chat.id, message.message_id)
 
 
-# 👑 SETADMIN (ФИКС 100%)
+# 👑 SETADMIN (по username)
 @bot.message_handler(commands=['setadmin'])
 def setadmin(message):
     if message.from_user.id != SUPERADMIN:
@@ -132,14 +144,14 @@ def setadmin(message):
         bot.send_message(
             message.chat.id,
             "❌ Пользователь не найден.\n"
-            "Он должен хотя бы 1 раз написать боту /start"
+            "Он должен хотя бы 1 раз написать /start"
         )
         return
 
     new_admin_id = usernames[username]
     MODS.add(new_admin_id)
 
-    bot.send_message(message.chat.id, f"✅ @{username} добавлен в модераторы")
+    bot.send_message(message.chat.id, f"✅ @{username} теперь модератор")
     bot.send_message(new_admin_id, "🎉 Вы теперь модератор!")
 
 
@@ -152,5 +164,5 @@ def stats(message):
     bot.send_message(message.chat.id, f"📊 Пользователей: {len(users)}")
 
 
-# 🚀 запуск
+# 🚀 RUN
 bot.infinity_polling()
