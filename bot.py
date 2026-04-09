@@ -1,8 +1,11 @@
-const TelegramBot = require('node-telegram-bot-api');
+import telebot
+import time
 
-const TOKEN = 8454142474:AAHpLFHANoCmQQpDTO7iZpDVXvbaPUqNr30
-const bot = new TelegramBot(TOKEN, { polling: true });
+TOKEN = "8454142474:AAHpLFHANoCmQQpDTO7iZpDVXvbaPUqNr30"
 
+bot = telebot.TeleBot(TOKEN)
+
+MODS = [7905149857]  # сюда свой ID
 // 👮 модеры
 const MODS = [7905149857];
 
