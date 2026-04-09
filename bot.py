@@ -399,3 +399,5 @@ def stats(message):
     bot.send_message(message.chat.id, f"📊 Пользователей: {len(users)}")
 
 bot.infinity_polling()
+if __name__ == "__main__":
+    bot.infinity_polling()
