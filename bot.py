@@ -1,129 +1,128 @@
 import telebot
 import time
-import re
-import os
 
-TOKEN = os.getenv("TOKEN", "8454142474:AAHpLFHANoCmQQpDTO7iZpDVXvbaPUqNr30)
+TOKEN = "8454142474:AAHpLFHANoCmQQpDTO7iZpDVXvbaPUqNr30"
 
 bot = telebot.TeleBot(TOKEN)
 
-MODS = [7905149857]
+MODS = [7905149857]  # сюда свой ID
 
 users = {}
 bans = {}
 mutes = {}
 
-
-def is_mod(user_id):
-    return user_id in MODS
-
-
+# /start
 @bot.message_handler(commands=['start'])
 def start(message):
-    user_id = message.from_user.id
+    id = message.from_user.id
 
-    if user_id not in users:
-        users[user_id] = {"firstSeen": time.time(), "count": 0}
+    if id not in users:
+        users[id] = {
+            "firstSeen": time.time(),
+            "count": 0
+        }
 
-    bot.send_message(
-        user_id,
-        "Привет!\nДобро пожаловать в БУ рынок.\n\nОтправь объявление.\nПроверка модераторами."
+    bot.send_message(id,
+"Привет! 👋\nДобро пожаловать в БУ рынок.\n\nОтправь объявление.\n❗Сообщения проверяются модераторами"
     )
 
+# все сообщения
+@bot.message_handler(func=lambda m: True)
+def all_messages(message):
+    id = message.from_user.id
+    text = message.text
 
+    if not text or text.startswith("/start"):
+        return
+
+    # модеры
+    if id in MODS:
+
+        if message.reply_to_message:
+            if "ID:" in message.reply_to_message.text:
+                user_id = int(message.reply_to_message.text.split("ID:")[1])
+                bot.send_message(user_id, text)
+                return
+
+        for mod in MODS:
+            if mod != id:
+                bot.send_message(mod, f"🛡 Модератор @{message.from_user.username}:\n{text}")
+        return
+
+    # бан
+    if id in bans:
+        return
+
+    # мут
+    if id in mutes and time.time() < mutes[id]:
+        bot.send_message(id, "⛔ У вас мут")
+        return
+
+    # регистрация
+    if id not in users:
+        users[id] = {
+            "firstSeen": time.time(),
+            "count": 0
+        }
+
+    users[id]["count"] += 1
+
+    bot.send_message(id, "⏳ Ожидайте, объявление отправлено")
+
+    info = f"""📢 Новое объявление
+👤 @{message.from_user.username}
+🆔 ID: {id}
+📨 {users[id]['count']}"""
+
+    for mod in MODS:
+        bot.send_message(mod, info)
+        bot.forward_message(mod, message.chat.id, message.message_id)
+
+# help
 @bot.message_handler(commands=['help'])
 def help_cmd(message):
-    if not is_mod(message.from_user.id):
-        bot.send_message(message.chat.id, "Нет доступа")
+    if message.from_user.id not in MODS:
+        bot.send_message(message.chat.id, "❌ Нет доступа")
         return
 
-    bot.send_message(
-        message.chat.id,
-        "/stats\n/ban (reply)\n/mute 10 (reply)"
+    bot.send_message(message.chat.id,
+"/ban (reply)\n/mute 10 (reply)\n/stats"
     )
 
-
-@bot.message_handler(commands=['stats'])
-def stats_cmd(message):
-    if not is_mod(message.from_user.id):
-        return
-
-    bot.send_message(message.chat.id, f"Пользователей: {len(users)}")
-
-
+# ban
 @bot.message_handler(commands=['ban'])
-def ban_cmd(message):
-    if not is_mod(message.from_user.id):
+def ban(message):
+    if message.from_user.id not in MODS:
         return
 
-    if not message.reply_to_message:
-        return
+    if message.reply_to_message and "ID:" in message.reply_to_message.text:
+        user_id = int(message.reply_to_message.text.split("ID:")[1])
+        bans[user_id] = True
+        bot.send_message(user_id, "⛔ Вы забанены")
 
-    match = re.search(r"ID:\s*(\d+)", message.reply_to_message.text or "")
-    if not match:
-        return
-
-    uid = int(match.group(1))
-    bans[uid] = True
-    bot.send_message(uid, "Вас забанили")
-
-
+# mute
 @bot.message_handler(commands=['mute'])
-def mute_cmd(message):
-    if not is_mod(message.from_user.id):
-        return
-
-    if not message.reply_to_message:
+def mute(message):
+    if message.from_user.id not in MODS:
         return
 
     parts = message.text.split()
     if len(parts) < 2:
         return
 
-    match = re.search(r"ID:\s*(\d+)", message.reply_to_message.text or "")
-    if not match:
-        return
-
-    uid = int(match.group(1))
     mins = int(parts[1])
 
-    mutes[uid] = time.time() + mins * 60
-    bot.send_message(uid, f"Мут на {mins} минут")
+    if message.reply_to_message and "ID:" in message.reply_to_message.text:
+        user_id = int(message.reply_to_message.text.split("ID:")[1])
+        mutes[user_id] = time.time() + mins * 60
+        bot.send_message(user_id, f"⛔ Мут на {mins} минут")
 
-
-@bot.message_handler(func=lambda m: True)
-def all_messages(message):
-    user_id = message.from_user.id
-    text = message.text
-
-    if not text:
+# stats
+@bot.message_handler(commands=['stats'])
+def stats(message):
+    if message.from_user.id not in MODS:
         return
 
-    if text.startswith("/"):
-        return
+    bot.send_message(message.chat.id, f"📊 Пользователей: {len(users)}")
 
-    if user_id in bans:
-        return
-
-    if user_id in mutes and time.time() < mutes[user_id]:
-        bot.send_message(user_id, "У вас мут")
-        return
-
-    if user_id not in users:
-        users[user_id] = {"firstSeen": time.time(), "count": 0}
-
-    users[user_id]["count"] += 1
-
-    username = message.from_user.username or "no_username"
-
-    bot.send_message(user_id, "Ожидайте проверку")
-
-    info = f"Новое объявление\n@{username}\nID: {user_id}\n#{users[user_id]['count']}"
-
-    for mod in MODS:
-        bot.send_message(mod, info)
-        bot.forward_message(mod, message.chat.id, message.message_id)
-
-
-if __name__ == "__main__":
-    bot.infinity_polling(skip_pending=True)
+bot.infinity_polling()
