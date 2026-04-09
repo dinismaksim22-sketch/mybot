@@ -5,7 +5,14 @@ TOKEN = "8454142474:AAHpLFHANoCmQQpDTO7iZpDVXvbaPUqNr30"
 
 bot = telebot.TeleBot(TOKEN)
 
-MODS = [7905149857]  # ID модераторов
+# 👑 ТЫ (главный админ)
+SUPERADMIN = 7905149857
+
+# 👮 модераторы
+MODS = set([SUPERADMIN])
+
+# username -> id
+usernames = {}
 
 users = {}
 bans = {}
@@ -21,6 +28,10 @@ def start(message):
             "firstSeen": time.time(),
             "count": 0
         }
+
+    # сохраняем username
+    if message.from_user.username:
+        usernames[message.from_user.username.lower()] = id
 
     bot.send_message(
         id,
@@ -38,12 +49,11 @@ def start(message):
 
         "🚫 Не спамить\n"
         "Разрешена реклама семьи / СК / ТК и т.д.\n\n"
-
         "📩 Связь: @cripta527"
     )
 
 
-# ВСЕ СООБЩЕНИЯ (ТЕКСТ + ФОТО + ВИДЕО)
+# ВСЕ СООБЩЕНИЯ (текст + фото + видео)
 @bot.message_handler(content_types=['text', 'photo', 'video'])
 def all_messages(message):
     id = message.from_user.id
@@ -78,7 +88,7 @@ def all_messages(message):
         bot.send_message(id, "⛔ У вас мут")
         return
 
-    # РЕГИСТРАЦИЯ
+    # регистрация
     if id not in users:
         users[id] = {
             "firstSeen": time.time(),
@@ -97,7 +107,6 @@ def all_messages(message):
     for mod in MODS:
         bot.send_message(mod, info)
 
-        # 📸 ФОТО
         if message.content_type == 'photo':
             bot.send_photo(
                 mod,
@@ -105,7 +114,6 @@ def all_messages(message):
                 caption=f"👤 @{message.from_user.username}\n🆔 ID: {id}"
             )
 
-        # 🎥 ВИДЕО
         elif message.content_type == 'video':
             bot.send_video(
                 mod,
@@ -113,9 +121,33 @@ def all_messages(message):
                 caption=f"👤 @{message.from_user.username}\n🆔 ID: {id}"
             )
 
-        # 💬 ТЕКСТ / ВСЁ ОСТАЛЬНОЕ
         else:
             bot.forward_message(mod, message.chat.id, message.message_id)
+
+
+# 👑 SETADMIN (по username)
+@bot.message_handler(commands=['setadmin'])
+def setadmin(message):
+    if message.from_user.id != SUPERADMIN:
+        bot.send_message(message.chat.id, "❌ Только главный админ может назначать модераторов")
+        return
+
+    parts = message.text.split()
+
+    if len(parts) < 2:
+        bot.send_message(message.chat.id, "Используй: /setadmin @username")
+        return
+
+    username = parts[1].replace("@", "").lower()
+
+    if username in usernames:
+        new_admin_id = usernames[username]
+        MODS.add(new_admin_id)
+
+        bot.send_message(message.chat.id, f"✅ @{username} теперь модератор")
+        bot.send_message(new_admin_id, "🎉 Вас назначили модератором!")
+    else:
+        bot.send_message(message.chat.id, "❌ Пользователь не найден или не писал боту")
 
 
 # HELP
@@ -127,7 +159,7 @@ def help_cmd(message):
 
     bot.send_message(
         message.chat.id,
-        "/ban (reply)\n/mute 10 (reply)\n/stats"
+        "/ban (reply)\n/mute 10 (reply)\n/stats\n/setadmin @username"
     )
 
 
