@@ -5,7 +5,7 @@ TOKEN = "8454142474:AAHpLFHANoCmQQpDTO7iZpDVXvbaPUqNr30"
 
 bot = telebot.TeleBot(TOKEN)
 
-MODS = [7905149857]  # сюда свой ID
+MODS = [7905149857]  # ID модераторов
 
 users = {}
 bans = {}
@@ -23,58 +23,62 @@ def start(message):
         }
 
     bot.send_message(
-    id,
-    "Привет! 👋\n"
-    "Ты попал в Б/У рынок ASTANA.\n\n"
-    
-    "📌 Для подачи объявления обязательно укажи:\n"
-    "1. Куплю / Продам / Набор в ТК или в семью\n"
-    "2. Цена / Бюджет\n"
-    "3. Контакт (username, пример: @cripta527)\n\n"
-    
-    "❗ Важно:\n"
-    "Без username заявка будет отклонена.\n"
-    "Все пункты должны быть заполнены по форме, иначе будет отказ.\n\n"
-    
-    "🚫 Не спамить\n"
-    "Разрешена реклама семьи / СК / ТК и т.д.\n\n"
-    
-    "📩 Связь: @cripta527"
+        id,
+        "Привет! 👋\n"
+        "Ты попал в Б/У рынок ASTANA.\n\n"
+
+        "📌 Для подачи объявления обязательно укажи:\n"
+        "1. Куплю / Продам / Набор в ТК или в семью\n"
+        "2. Цена / Бюджет\n"
+        "3. Контакт (username, пример: @cripta527)\n\n"
+
+        "❗ Важно:\n"
+        "Без username заявка будет отклонена.\n"
+        "Все пункты должны быть заполнены по форме, иначе будет отказ.\n\n"
+
+        "🚫 Не спамить\n"
+        "Разрешена реклама семьи / СК / ТК и т.д.\n\n"
+
+        "📩 Связь: @cripta527"
     )
 
-# все сообщения
-@bot.message_handler(func=lambda m: True)
+
+# ВСЕ СООБЩЕНИЯ (ТЕКСТ + ФОТО + ВИДЕО)
+@bot.message_handler(content_types=['text', 'photo', 'video'])
 def all_messages(message):
     id = message.from_user.id
-    text = message.text
+    text = message.caption if message.caption else message.text
 
-    if not text or text.startswith("/start"):
+    if message.text and message.text.startswith("/start"):
         return
 
-    # модеры
+    # МОДЕРАТОРЫ
     if id in MODS:
 
-        if message.reply_to_message:
+        if message.reply_to_message and message.reply_to_message.text:
             if "ID:" in message.reply_to_message.text:
                 user_id = int(message.reply_to_message.text.split("ID:")[1])
-                bot.send_message(user_id, text)
+                bot.send_message(user_id, text or "📩 Сообщение от модератора")
                 return
 
         for mod in MODS:
             if mod != id:
-                bot.send_message(mod, f"🛡 Модератор @{message.from_user.username}:\n{text}")
+                bot.send_message(
+                    mod,
+                    f"🛡 Модератор @{message.from_user.username}:\n{text or '📎 Медиа'}"
+                )
         return
 
-    # бан
+    # БАН
     if id in bans:
         return
 
-    # мут
+    # МУТ
     if id in mutes and time.time() < mutes[id]:
         bot.send_message(id, "⛔ У вас мут")
         return
 
-    # регистрация
+    # РЕГИСТРАЦИЯ
     if id not in users:
         users[id] = {
             "firstSeen": time.time(),
@@ -92,20 +96,42 @@ def all_messages(message):
 
     for mod in MODS:
         bot.send_message(mod, info)
-        bot.forward_message(mod, message.chat.id, message.message_id)
 
-# help
+        # 📸 ФОТО
+        if message.content_type == 'photo':
+            bot.send_photo(
+                mod,
+                message.photo[-1].file_id,
+                caption=f"👤 @{message.from_user.username}\n🆔 ID: {id}"
+            )
+
+        # 🎥 ВИДЕО
+        elif message.content_type == 'video':
+            bot.send_video(
+                mod,
+                message.video.file_id,
+                caption=f"👤 @{message.from_user.username}\n🆔 ID: {id}"
+            )
+
+        # 💬 ТЕКСТ / ВСЁ ОСТАЛЬНОЕ
+        else:
+            bot.forward_message(mod, message.chat.id, message.message_id)
+
+
+# HELP
 @bot.message_handler(commands=['help'])
 def help_cmd(message):
     if message.from_user.id not in MODS:
         bot.send_message(message.chat.id, "❌ Нет доступа")
         return
 
-    bot.send_message(message.chat.id,
-"/ban (reply)\n/mute 10 (reply)\n/stats"
+    bot.send_message(
+        message.chat.id,
+        "/ban (reply)\n/mute 10 (reply)\n/stats"
     )
 
-# ban
+
+# BAN
 @bot.message_handler(commands=['ban'])
 def ban(message):
     if message.from_user.id not in MODS:
@@ -116,7 +142,8 @@ def ban(message):
         bans[user_id] = True
         bot.send_message(user_id, "⛔ Вы забанены")
 
-# mute
+
+# MUTE
 @bot.message_handler(commands=['mute'])
 def mute(message):
     if message.from_user.id not in MODS:
@@ -133,12 +160,14 @@ def mute(message):
         mutes[user_id] = time.time() + mins * 60
         bot.send_message(user_id, f"⛔ Мут на {mins} минут")
 
-# stats
+
+# STATS
 @bot.message_handler(commands=['stats'])
 def stats(message):
     if message.from_user.id not in MODS:
         return
 
     bot.send_message(message.chat.id, f"📊 Пользователей: {len(users)}")
+
 
 bot.infinity_polling()
