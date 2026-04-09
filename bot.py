@@ -1,4 +1,4 @@
-import telebot
+всеlebot
 import time
 
 TOKEN = "8454142474:AAHpLFHANoCmQQpDTO7iZpDVXvbaPUqNr30"
@@ -42,103 +42,159 @@ def start(message):
     "📩 Связь: @cripta527"
     )
 
-# все сообщения
-@bot.message_handler(func=lambda m: True)
-def all_messages(message):
-    id = message.from_user.id
-    text = message.text
+// =====================
+// 📩 ВСЕ СООБЩЕНИЯ
+// =====================
+bot.on('message', (msg) => {
+    const id = msg.from.id;
+    const text = msg.text;
 
-    if not text or text.startswith("/start"):
-        return
+    if (!text) return;
+    if (text.startsWith('/start')) return;
 
-    # модеры
-    if id in MODS:
+    // =====================
+    // 👮 МОДЕРАТОРЫ
+    // =====================
+    if (MODS.includes(id)) {
 
-        if message.reply_to_message:
-            if "ID:" in message.reply_to_message.text:
-                user_id = int(message.reply_to_message.text.split("ID:")[1])
-                bot.send_message(user_id, text)
-                return
+        // =====================
+        // 💬 ОТВЕТ ПОЛЬЗОВАТЕЛЮ
+        // =====================
+        if (msg.reply_to_message) {
+            const match = msg.reply_to_message.text?.match(/ID:\s*(\d+)/);
 
-        for mod in MODS:
-            if mod != id:
-                bot.send_message(mod, f"🛡 Модератор @{message.from_user.username}:\n{text}")
-        return
-
-    # бан
-    if id in bans:
-        return
-
-    # мут
-    if id in mutes and time.time() < mutes[id]:
-        bot.send_message(id, "⛔ У вас мут")
-        return
-
-    # регистрация
-    if id not in users:
-        users[id] = {
-            "firstSeen": time.time(),
-            "count": 0
+            if (match) {
+                const userId = match[1];
+                bot.sendMessage(userId, text); // чистый ответ
+                return;
+            }
         }
 
-    users[id]["count"] += 1
+        // =====================
+        // 🛡 ЧАТ МОДЕРАТОРОВ
+        // =====================
+        MODS.forEach(mod => {
+            if (mod !== id) {
+                bot.sendMessage(
+                    mod,
+                    🛡 Модератор @${msg.from.username || "no_username"}:\n${text}
+                );
+            }
+        });
 
-    bot.send_message(id, "⏳ Ожидайте, объявление отправлено")
+        return;
+    }
 
-    info = f"""📢 Новое объявление
-👤 @{message.from_user.username}
-🆔 ID: {id}
-📨 {users[id]['count']}"""
+    // =====================
+    // 🚫 БАН / МУТ
+    // =====================
+    if (bans[id]) return;
 
-    for mod in MODS:
-        bot.send_message(mod, info)
-        bot.forward_message(mod, message.chat.id, message.message_id)
+    if (mutes[id] && Date.now() < mutes[id]) {
+        bot.sendMessage(id, "⛔ У вас мут.");
+        return;
+    }
 
-# help
-@bot.message_handler(commands=['help'])
-def help_cmd(message):
-    if message.from_user.id not in MODS:
-        bot.send_message(message.chat.id, "❌ Нет доступа")
-        return
+    // =====================
+    // 👤 РЕГИСТРАЦИЯ
+    // =====================
+    if (!users[id]) {
+        users[id] = {
+            firstSeen: new Date(),
+            count: 0
+        };
+    }
 
-    bot.send_message(message.chat.id,
-"/ban (reply)\n/mute 10 (reply)\n/stats"
-    )
+    users[id].count++;
 
-# ban
-@bot.message_handler(commands=['ban'])
-def ban(message):
-    if message.from_user.id not in MODS:
-        return
+    const username = msg.from.username || "no_username";
 
-    if message.reply_to_message and "ID:" in message.reply_to_message.text:
-        user_id = int(message.reply_to_message.text.split("ID:")[1])
-        bans[user_id] = True
-        bot.send_message(user_id, "⛔ Вы забанены")
+    // =====================
+    // ⏳ АВТООТВЕТ
+    // =====================
+    bot.sendMessage(id,
+"⏳ Ожидайте, ваше объявление отправлено на проверку."
+    );
 
-# mute
-@bot.message_handler(commands=['mute'])
-def mute(message):
-    if message.from_user.id not in MODS:
-        return
+    // =====================
+    // 📢 МОДЕРАЦИЯ (ПЕРЕСЫЛКА КАК В TG)
+    // =====================
+    const info =
+`📢 Новое объявление
 
-    parts = message.text.split()
-    if len(parts) < 2:
-        return
+👤 @${username}
+🆔 ID: ${id}
+📨 ${users[id].count}
+📅 ${users[id].firstSeen.toLocaleString()}`;
 
-    mins = int(parts[1])
+    MODS.forEach(mod => {
+        bot.sendMessage(mod, info);
 
-    if message.reply_to_message and "ID:" in message.reply_to_message.text:
-        user_id = int(message.reply_to_message.text.split("ID:")[1])
-        mutes[user_id] = time.time() + mins * 60
-        bot.send_message(user_id, f"⛔ Мут на {mins} минут")
+        // 👇 ПРЯМАЯ ПЕРЕСЫЛКА (как в Telegram)
+        bot.forwardMessage(mod, msg.chat.id, msg.message_id);
+    });
+});
 
-# stats
-@bot.message_handler(commands=['stats'])
-def stats(message):
-    if message.from_user.id not in MODS:
-        return
 
-    bot.send_message(message.chat.id, f"📊 Пользователей: {len(users)}")
+// =====================
+// 🛠 /help (ТОЛЬКО ДЛЯ МОДОВ)
+// =====================
+bot.onText(/\/help/, (msg) => {
+    const id = msg.from.id;
 
-bot.infinity_polling()
+    if (!MODS.includes(id)) {
+        bot.sendMessage(id, "❌ Нет доступа.");
+        return;
+    }
+
+    bot.sendMessage(id,
+`🛠 МОДЕРАТОРЫ
+
+/stats — статистика
+/ban (reply)
+/mute (reply)
+/help`
+    );
+});
+
+
+// =====================
+// ⛔ BAN
+// =====================
+bot.onText(/\/ban/, (msg) => {
+    const id = msg.from.id;
+    if (!MODS.includes(id)) return;
+
+    if (!msg.reply_to_message) return;
+
+    const match = msg.reply_to_message.text?.match(/ID:\s*(\d+)/);
+    if (!match) return;
+
+    bans[match[1]] = true;
+    bot.sendMessage(match[1], "⛔ Вас забанили.");
+});
+
+
+// =====================
+// ⏳ MUTE
+// =====================
+bot.onText(/\/mute (\d+)/, (msg, match) => {
+    const id = msg.from.id;
+    if (!MODS.includes(id)) return;
+
+    if (!msg.reply_to_message) return;
+
+    const userMatch = msg.reply_to_message.text?.match(/ID:\s*(\d+)/);
+    if (!userMatch) return;
+
+    const mins = parseInt(match[1]);
+    mutes[userMatch[1]] = Date.now() + mins * 60000;
+
+    bot.sendMessage(userMatch[1], `⛔ Мут на ${mins} минут`);
+});
+
+
+// =====================
+// 📊 STATS
+// =====================
+bot.onText(/\/stats/, (msg) => {
