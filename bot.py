@@ -1,4 +1,4 @@
-всеlebot
+import telebot
 import time
 
 TOKEN = "8454142474:AAHpLFHANoCmQQpDTO7iZpDVXvbaPUqNr30"
@@ -41,7 +41,7 @@ def start(message):
     
     "📩 Связь: @cripta527"
     )
-    
+
 # все сообщения
 @bot.message_handler(func=lambda m: True)
 def all_messages(message):
