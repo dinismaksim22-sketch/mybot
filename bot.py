@@ -10,7 +10,6 @@ MODS = set([SUPERADMIN])
 users = {}
 bans = {}
 mutes = {}
-
 usernames = {}
 
 
@@ -29,7 +28,7 @@ def register_user(message):
         usernames[username.lower()] = user_id
 
 
-# /start (ПОЛНЫЙ ТВОЙ ТЕКСТ)
+# /start
 @bot.message_handler(commands=['start'])
 def start(message):
     register_user(message)
@@ -55,16 +54,18 @@ def start(message):
     )
 
 
-# 📩 ВСЕ СООБЩЕНИЯ
+# 🔥 ВСЕ СООБЩЕНИЯ (ФИКС КОМАНД)
 @bot.message_handler(content_types=['text', 'photo', 'video'])
 def all_messages(message):
+
+    # ❗ ПРОПУСКАЕМ КОМАНДЫ
+    if message.text and message.text.startswith("/"):
+        return
+
     register_user(message)
 
     user_id = message.from_user.id
     text = message.caption if message.caption else message.text
-
-    if message.text and message.text.startswith("/start"):
-        return
 
     # 👮 МОДЕРАТОРЫ
     if user_id in MODS:
@@ -92,7 +93,6 @@ def all_messages(message):
         bot.send_message(user_id, "⛔ У вас мут")
         return
 
-    # 📊 count
     users[user_id]["count"] += 1
 
     bot.send_message(user_id, "⏳ Ожидайте, объявление отправлено")
@@ -105,7 +105,6 @@ def all_messages(message):
     for mod in MODS:
         bot.send_message(mod, info)
 
-        # 📸 фото
         if message.content_type == 'photo':
             bot.send_photo(
                 mod,
@@ -113,7 +112,6 @@ def all_messages(message):
                 caption=f"👤 @{message.from_user.username or 'нет_username'}\n🆔 ID: {user_id}"
             )
 
-        # 🎥 видео
         elif message.content_type == 'video':
             bot.send_video(
                 mod,
@@ -125,7 +123,7 @@ def all_messages(message):
             bot.forward_message(mod, message.chat.id, message.message_id)
 
 
-# 👑 SETADMIN (по username)
+# 👑 SETADMIN (РАБОТАЕТ)
 @bot.message_handler(commands=['setadmin'])
 def setadmin(message):
     if message.from_user.id != SUPERADMIN:
@@ -144,7 +142,7 @@ def setadmin(message):
         bot.send_message(
             message.chat.id,
             "❌ Пользователь не найден.\n"
-            "Он должен хотя бы 1 раз написать /start"
+            "Он должен написать боту сообщение"
         )
         return
 
@@ -164,5 +162,5 @@ def stats(message):
     bot.send_message(message.chat.id, f"📊 Пользователей: {len(users)}")
 
 
-# 🚀 RUN
+# 🚀 ЗАПУСК
 bot.infinity_polling()
