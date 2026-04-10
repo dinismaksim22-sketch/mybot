@@ -88,7 +88,7 @@ def setadmin(message):
 @bot.message_handler(content_types=['text', 'photo', 'video'])
 def all_messages(message):
 
-    # ❗ НЕ ОБРАБАТЫВАЕМ КОМАНДЫ
+    # ❗ пропускаем команды
     if message.text and message.text.startswith("/"):
         return
 
@@ -97,17 +97,21 @@ def all_messages(message):
     user_id = message.from_user.id
     text = message.caption if message.caption else message.text
 
-    # 👮 МОДЕРАТОРЫ (ЧАТ)
+    # 👮 МОДЕРАТОРЫ
     if user_id in MODS:
 
-        # ответ пользователю
+        # 🔥 ОТВЕТ ПОЛЬЗОВАТЕЛЮ
         if message.reply_to_message and message.reply_to_message.text:
             if "ID:" in message.reply_to_message.text:
                 target_id = int(message.reply_to_message.text.split("ID:")[1])
-                bot.send_message(target_id, text or "📩 Сообщение от модератора")
+
+                bot.send_message(
+                    target_id,
+                    f"📩 Модератор ответил:\n{text or '📎 Медиа'}"
+                )
                 return
 
-        # 💬 чат модераторов
+        # 💬 ЧАТ МОДЕРОВ
         for mod in MODS:
             if mod != user_id:
                 bot.send_message(
@@ -165,5 +169,5 @@ def stats(message):
     bot.send_message(message.chat.id, f"📊 Пользователей: {len(users)}")
 
 
-# 🚀 ЗАПУСК
+# 🚀 запуск
 bot.infinity_polling(skip_pending=True)
