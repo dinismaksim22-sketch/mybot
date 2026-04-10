@@ -2,21 +2,27 @@ import telebot
 import time
 
 TOKEN = "8454142474:AAHpLFHANoCmQQpDTO7iZpDVXvbaPUqNr30"
-bot = telebot.TeleBot(TOKEN, parse_mode="HTML")
+bot = telebot.TeleBot(TOKEN)
 
 SUPERADMIN = 7905149857
 MODS = set([SUPERADMIN])
 
 users = {}
+bans = {}
+mutes = {}
 usernames = {}
 
-# 📌 регистрация
+
+# 📌 регистрация пользователя
 def register_user(message):
     user_id = message.from_user.id
     username = message.from_user.username
 
     if user_id not in users:
-        users[user_id] = {"count": 0}
+        users[user_id] = {
+            "firstSeen": time.time(),
+            "count": 0
+        }
 
     if username:
         usernames[username.lower()] = user_id
@@ -48,11 +54,9 @@ def start(message):
     )
 
 
-# 👑 SETADMIN (С DEBUG)
+# 👑 SETADMIN
 @bot.message_handler(commands=['setadmin'])
 def setadmin(message):
-    print("SETADMIN CALLED")  # 👈 СМОТРИ В КОНСОЛЬ
-
     if message.from_user.id != SUPERADMIN:
         bot.send_message(message.chat.id, "❌ Нет доступа")
         return
@@ -65,10 +69,12 @@ def setadmin(message):
 
     username = args[1].replace("@", "").lower()
 
-    print("TRY ADD:", username)
-
     if username not in usernames:
-        bot.send_message(message.chat.id, "❌ Пользователь не найден")
+        bot.send_message(
+            message.chat.id,
+            "❌ Пользователь не найден.\n"
+            "Он должен написать боту сообщение"
+        )
         return
 
     new_admin_id = usernames[username]
@@ -79,22 +85,85 @@ def setadmin(message):
 
 
 # 📩 ВСЕ СООБЩЕНИЯ
-@bot.message_handler(func=lambda message: True, content_types=['text', 'photo'])
+@bot.message_handler(content_types=['text', 'photo', 'video'])
 def all_messages(message):
 
-    # ❗ НЕ ТРОГАЕМ КОМАНДЫ
+    # ❗ НЕ ОБРАБАТЫВАЕМ КОМАНДЫ
     if message.text and message.text.startswith("/"):
         return
 
     register_user(message)
 
     user_id = message.from_user.id
+    text = message.caption if message.caption else message.text
 
-    bot.send_message(user_id, "⏳ Отправлено модераторам")
+    # 👮 МОДЕРАТОРЫ (ЧАТ)
+    if user_id in MODS:
+
+        # ответ пользователю
+        if message.reply_to_message and message.reply_to_message.text:
+            if "ID:" in message.reply_to_message.text:
+                target_id = int(message.reply_to_message.text.split("ID:")[1])
+                bot.send_message(target_id, text or "📩 Сообщение от модератора")
+                return
+
+        # 💬 чат модераторов
+        for mod in MODS:
+            if mod != user_id:
+                bot.send_message(
+                    mod,
+                    f"🛡 Модератор @{message.from_user.username or 'no_username'}:\n{text or '📎 Медиа'}"
+                )
+
+        return
+
+    # 🚫 BAN
+    if user_id in bans:
+        return
+
+    # ⛔ MUTE
+    if user_id in mutes and time.time() < mutes[user_id]:
+        bot.send_message(user_id, "⛔ У вас мут")
+        return
+
+    users[user_id]["count"] += 1
+
+    bot.send_message(user_id, "⏳ Ожидайте, объявление отправлено")
+
+    info = f"""📢 Новое объявление
+👤 @{message.from_user.username or 'нет_username'}
+🆔 ID: {user_id}
+📨 {users[user_id]['count']}"""
 
     for mod in MODS:
-        bot.forward_message(mod, message.chat.id, message.message_id)
+        bot.send_message(mod, info)
+
+        if message.content_type == 'photo':
+            bot.send_photo(
+                mod,
+                message.photo[-1].file_id,
+                caption=f"👤 @{message.from_user.username or 'нет_username'}\n🆔 ID: {user_id}"
+            )
+
+        elif message.content_type == 'video':
+            bot.send_video(
+                mod,
+                message.video.file_id,
+                caption=f"👤 @{message.from_user.username or 'нет_username'}\n🆔 ID: {user_id}"
+            )
+
+        else:
+            bot.forward_message(mod, message.chat.id, message.message_id)
 
 
-# 🚀 ЗАПУСК (КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ)
-bot.infinity_polling(skip_pending=True, timeout=60, long_polling_timeout=60)
+# 📊 STATS
+@bot.message_handler(commands=['stats'])
+def stats(message):
+    if message.from_user.id not in MODS:
+        return
+
+    bot.send_message(message.chat.id, f"📊 Пользователей: {len(users)}")
+
+
+# 🚀 ЗАПУСК
+bot.infinity_polling(skip_pending=True)
