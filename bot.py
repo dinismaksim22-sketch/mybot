@@ -3,7 +3,7 @@ import time
 import json
 import os
 
-TOKEN = "PASTE_NEW_TOKEN_HERE"
+TOKEN = "8454142474:AAHpLFHANoCmQQpDTO7iZpDVXvbaPUqNr30"
 bot = telebot.TeleBot(TOKEN)
 
 SUPERADMIN = 7905149857
