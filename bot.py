@@ -66,7 +66,9 @@ def start(message):
         "3. Контакт (username, пример: @cripta527)\n\n"
         "❗ Важно:\n"
         "Без username заявка будет отклонена.\n"
+        "Если ты не указал @username — бот НЕ пропустит объявление.\n\n"
         "🚫 Не спамить\n"
+        "Разрешена реклама семьи / СК / ТК и т.д.\n\n"
         "📩 Связь: @cripta527"
     )
 
@@ -99,7 +101,7 @@ def setadmin(message):
     bot.send_message(uid, "🎉 Вы теперь модератор\n/help")
 
 
-# ❌ deladmin
+# ❌ deladmin (С ПОДСКАЗКОЙ)
 @bot.message_handler(commands=['deladmin'])
 def deladmin(message):
     if message.from_user.id != SUPERADMIN:
@@ -107,6 +109,7 @@ def deladmin(message):
 
     args = message.text.split()
     if len(args) < 2:
+        bot.send_message(message.chat.id, "❗ Используй: /deladmin @username")
         return
 
     username = args[1].replace("@", "").lower()
@@ -263,7 +266,7 @@ def all_messages(message):
     uid = message.from_user.id
     text = message.text or message.caption or "📎 Медиа"
 
-    # ❗ НОВОЕ: проверка @username в объявлении
+    # ❗ проверка username
     if uid not in MODS:
         if "@" not in (message.text or "") and "@" not in (message.caption or ""):
             bot.send_message(
@@ -273,23 +276,26 @@ def all_messages(message):
             )
             return
 
-    # 👮 модеры
+    # 👮 МОДЕРЫ
     if uid in MODS:
 
-        # FIX: теперь НЕ зависит от forward_from
         if message.reply_to_message:
-
             target_user = message.reply_to_message.from_user
 
+            # ✉️ участнику
             bot.send_message(
                 target_user.id,
-                f"📩 Модератор ответил:\n{text}"
+                f"📩 <b>Модератор ответил вам</b>\n\n{text}",
+                parse_mode="HTML"
             )
 
+            # 📢 модерам лог
             for m in MODS:
                 bot.send_message(
                     m,
-                    f"📤 @{message.from_user.username} → @{target_user.username}\n{text}"
+                    f"📤 <b>Ответ модератора</b>\n"
+                    f"👮 @{message.from_user.username} → 👤 @{target_user.username}\n\n{text}",
+                    parse_mode="HTML"
                 )
             return
 
@@ -312,7 +318,7 @@ def all_messages(message):
 
     bot.send_message(
         uid,
-        "⏳ Ожидайте, все объявления проверяются модераторами."
+        "⏳ Ожидайте, все объявления проверяются модераторами, не нужно дублировать сообщение."
     )
 
     for m in MODS:
