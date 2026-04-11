@@ -280,21 +280,22 @@ def all_messages(message):
     if uid in MODS:
 
         if message.reply_to_message:
-            target_user = message.reply_to_message.from_user
+
+            target = message.reply_to_message.forward_from or message.reply_to_message.from_user
 
             # ✉️ участнику
             bot.send_message(
-                target_user.id,
-                f"📩 <b>Модератор ответил вам</b>\n\n{text}",
+                target.id,
+                f"📩 <b>Модератор ответил вам</b>\n\n💬 {text}",
                 parse_mode="HTML"
             )
 
-            # 📢 модерам лог
+            # 📢 лог модерам
             for m in MODS:
                 bot.send_message(
                     m,
                     f"📤 <b>Ответ модератора</b>\n"
-                    f"👮 @{message.from_user.username} → 👤 @{target_user.username}\n\n{text}",
+                    f"👮 @{message.from_user.username} → 👤 @{target.username}\n\n💬 {text}",
                     parse_mode="HTML"
                 )
             return
@@ -320,6 +321,10 @@ def all_messages(message):
         uid,
         "⏳ Ожидайте, все объявления проверяются модераторами, не нужно дублировать сообщение."
     )
+
+    # 📸 FIX: отправка медиа групп
+    if message.media_group_id:
+        return
 
     for m in MODS:
         bot.forward_message(m, message.chat.id, message.message_id)
