@@ -37,6 +37,9 @@ usernames = data["usernames"]
 bans = {}
 mutes = {}
 
+# NEW: хранение медиа групп
+media_groups = {}
+
 
 def register_user(message):
     user_id = str(message.from_user.id)
@@ -283,14 +286,12 @@ def all_messages(message):
 
             target = message.reply_to_message.forward_from or message.reply_to_message.from_user
 
-            # ✉️ участнику
             bot.send_message(
                 target.id,
                 f"📩 <b>Модератор ответил вам</b>\n\n💬 {text}",
                 parse_mode="HTML"
             )
 
-            # 📢 лог модерам
             for m in MODS:
                 bot.send_message(
                     m,
@@ -322,10 +323,27 @@ def all_messages(message):
         "⏳ Ожидайте, все объявления проверяются модераторами, не нужно дублировать сообщение."
     )
 
-    # 📸 FIX: отправка медиа групп
+    # NEW: обработка медиа групп
     if message.media_group_id:
+        group_id = message.media_group_id
+
+        if group_id not in media_groups:
+            media_groups[group_id] = []
+
+        media_groups[group_id].append(message)
+
+        time.sleep(1)
+
+        if len(media_groups[group_id]) >= 1:
+            for msg in media_groups[group_id]:
+                for m in MODS:
+                    bot.forward_message(m, msg.chat.id, msg.message_id)
+
+            del media_groups[group_id]
+
         return
 
+    # обычные сообщения
     for m in MODS:
         bot.forward_message(m, message.chat.id, message.message_id)
 
