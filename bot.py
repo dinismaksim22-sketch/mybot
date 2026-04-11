@@ -75,14 +75,9 @@ def start(message):
 @bot.message_handler(commands=['setadmin'])
 def setadmin(message):
     if message.from_user.id != SUPERADMIN:
-        bot.send_message(message.chat.id, "❌ Нет доступа")
         return
 
     args = message.text.split()
-    if len(args) < 2:
-        bot.send_message(message.chat.id, "❗ /setadmin @username")
-        return
-
     username = args[1].replace("@", "").lower()
 
     if username not in usernames:
@@ -106,9 +101,6 @@ def deladmin(message):
         return
 
     args = message.text.split()
-    if len(args) < 2:
-        return
-
     username = args[1].replace("@", "").lower()
 
     if username in usernames:
@@ -130,7 +122,8 @@ def help_cmd(message):
 
     bot.send_message(
         message.chat.id,
-        "/id @user\n/mute @user время причина\n/ban @user причина\n/unmute @user\n/unban @user"
+        "/id @user\n/mute @user время причина\n/ban @user причина\n/unmute @user\n/unban @user\n\n"
+        "💬 Можно отвечать reply или писать напрямую пользователю"
     )
 
 
@@ -141,9 +134,6 @@ def get_id(message):
         return
 
     args = message.text.split()
-    if len(args) < 2:
-        return
-
     username = args[1].replace("@", "").lower()
 
     if username in usernames:
@@ -157,24 +147,18 @@ def mute_cmd(message):
         return
 
     args = message.text.split()
-    if len(args) < 3:
-        return
-
     username = args[1].replace("@", "").lower()
     minutes = int(args[2])
-    reason = " ".join(args[3:]) if len(args) > 3 else ""
-
-    if username not in usernames:
-        return
+    reason = " ".join(args[3:])
 
     uid = usernames[username]
     mutes[uid] = time.time() + minutes * 60
 
-    bot.send_message(uid, f"⛔ Мут {minutes} мин\n{reason}")
+    bot.send_message(uid, f"⛔ Мут на {minutes} мин\n{reason}")
     bot.send_message(message.chat.id, "✅ Мут выдан")
 
     bot.send_message(SUPERADMIN,
-        f"‼️ Модер @{message.from_user.username} выдал мут @{username}"
+        f"‼️ @{message.from_user.username} выдал мут @{username}"
     )
 
 
@@ -185,13 +169,7 @@ def ban_cmd(message):
         return
 
     args = message.text.split()
-    if len(args) < 2:
-        return
-
     username = args[1].replace("@", "").lower()
-
-    if username not in usernames:
-        return
 
     uid = usernames[username]
     bans[uid] = True
@@ -200,58 +178,39 @@ def ban_cmd(message):
     bot.send_message(message.chat.id, "✅ Бан выдан")
 
     bot.send_message(SUPERADMIN,
-        f"‼️ Модер @{message.from_user.username} забанил @{username}"
+        f"‼️ @{message.from_user.username} забанил @{username}"
     )
 
 
-# 📢 all
-@bot.message_handler(commands=['all'])
-def all_cmd(message):
-    if message.from_user.id != SUPERADMIN:
-        return
-
-    text = message.text.replace("/all ", "")
-
-    for uid in users:
-        try:
-            bot.send_message(int(uid), text)
-        except:
-            pass
-
-
-# 🔓 UNMUTE
+# 🔓 unmute
 @bot.message_handler(commands=['unmute'])
 def unmute_cmd(message):
     if message.from_user.id not in MODS:
         return
 
-    args = message.text.split()
-    username = args[1].replace("@", "").lower()
+    username = message.text.split()[1].replace("@", "").lower()
+    uid = usernames[username]
 
-    if username in usernames:
-        uid = usernames[username]
-        mutes.pop(uid, None)
-        bot.send_message(uid, "✅ Мут снят")
-        bot.send_message(message.chat.id, "✅ Ок")
+    mutes.pop(uid, None)
+    bot.send_message(uid, "✅ Мут снят")
+    bot.send_message(message.chat.id, "✅ Ок")
 
 
-# 🔓 UNBAN
+# 🔓 unban
 @bot.message_handler(commands=['unban'])
 def unban_cmd(message):
     if message.from_user.id not in MODS:
         return
 
-    args = message.text.split()
-    username = args[1].replace("@", "").lower()
+    username = message.text.split()[1].replace("@", "").lower()
+    uid = usernames[username]
 
-    if username in usernames:
-        uid = usernames[username]
-        bans.pop(uid, None)
-        bot.send_message(uid, "✅ Вы разбанены")
-        bot.send_message(message.chat.id, "✅ Ок")
+    bans.pop(uid, None)
+    bot.send_message(uid, "✅ Вы разбанены")
+    bot.send_message(message.chat.id, "✅ Ок")
 
 
-# 📩 ГЛАВНЫЕ СООБЩЕНИЯ
+# 📩 СООБЩЕНИЯ
 @bot.message_handler(content_types=['text', 'photo', 'video'])
 def all_messages(message):
 
@@ -263,43 +222,38 @@ def all_messages(message):
     uid = message.from_user.id
     text = message.text or message.caption or "📎 Медиа"
 
-    # ❗ НОВОЕ: проверка @username в объявлении
+
+    # ❗ проверка username
     if uid not in MODS:
         if "@" not in (message.text or "") and "@" not in (message.caption or ""):
             bot.send_message(
                 uid,
-                "❌ ОШИБКА\n\nДобавьте свой @username в объявление!\n"
-                "Без него заявка не будет рассмотрена."
+                "❌ Добавьте @username в объявление"
             )
             return
 
-    # 👮 модеры
+
+    # 👮 МОДЕРЫ
     if uid in MODS:
 
-        # FIX: теперь НЕ зависит от forward_from
+        # ✅ ВОССТАНОВЛЕНО: можно писать пользователю напрямую
         if message.reply_to_message:
-
-            target_user = message.reply_to_message.from_user
+            target = message.reply_to_message.from_user
 
             bot.send_message(
-                target_user.id,
-                f"📩 Модератор ответил:\n{text}"
+                target.id,
+                f"📩 Модератор @{message.from_user.username}:\n{text}"
             )
 
-            for m in MODS:
-                bot.send_message(
-                    m,
-                    f"📤 @{message.from_user.username} → @{target_user.username}\n{text}"
-                )
-            return
-
+        # чат модеров
         for m in MODS:
             if m != uid:
                 bot.send_message(
                     m,
-                    f"🛡 Модератор @{message.from_user.username}:\n{text}"
+                    f"🛡 @{message.from_user.username}:\n{text}"
                 )
         return
+
 
     # ❌ BAN
     if uid in bans:
