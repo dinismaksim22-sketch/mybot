@@ -3,7 +3,7 @@ import time
 import json
 import os
 
-TOKEN = "8454142474:AAHpLFHANoCmQQpDTO7iZpDVXvbaPUqNr30"
+TOKEN = "PASTE_NEW_TOKEN_HERE"
 bot = telebot.TeleBot(TOKEN)
 
 SUPERADMIN = 7905149857
@@ -60,13 +60,19 @@ def start(message):
         message.chat.id,
         "Привет! 👋\n"
         "Ты попал в Б/У рынок ASTANA.\n\n"
+
         "📌 Для подачи объявления обязательно укажи:\n"
         "1. Куплю / Продам / Набор в ТК или в семью\n"
         "2. Цена / Бюджет\n"
         "3. Контакт (username, пример: @cripta527)\n\n"
+
         "❗ Важно:\n"
         "Без username заявка будет отклонена.\n"
+        "Все пункты должны быть заполнены по форме, иначе будет отказ.\n\n"
+
         "🚫 Не спамить\n"
+        "Разрешена реклама семьи / СК / ТК и т.д.\n\n"
+
         "📩 Связь: @cripta527"
     )
 
@@ -78,6 +84,10 @@ def setadmin(message):
         return
 
     args = message.text.split()
+    if len(args) < 2:
+        bot.send_message(message.chat.id, "❗ /setadmin @username")
+        return
+
     username = args[1].replace("@", "").lower()
 
     if username not in usernames:
@@ -101,12 +111,16 @@ def deladmin(message):
         return
 
     args = message.text.split()
+    if len(args) < 2:
+        return
+
     username = args[1].replace("@", "").lower()
 
     if username in usernames:
         uid = usernames[username]
 
         MODS.discard(uid)
+
         data["mods"] = list(MODS)
         save_data()
 
@@ -123,7 +137,7 @@ def help_cmd(message):
     bot.send_message(
         message.chat.id,
         "/id @user\n/mute @user время причина\n/ban @user причина\n/unmute @user\n/unban @user\n\n"
-        "💬 Можно отвечать reply или писать напрямую пользователю"
+        "💬 Ответ пользователю через reply"
     )
 
 
@@ -134,6 +148,9 @@ def get_id(message):
         return
 
     args = message.text.split()
+    if len(args) < 2:
+        return
+
     username = args[1].replace("@", "").lower()
 
     if username in usernames:
@@ -147,6 +164,10 @@ def mute_cmd(message):
         return
 
     args = message.text.split()
+    if len(args) < 4:
+        bot.send_message(message.chat.id, "❗ /mute @user 10 причина")
+        return
+
     username = args[1].replace("@", "").lower()
     minutes = int(args[2])
     reason = " ".join(args[3:])
@@ -157,10 +178,6 @@ def mute_cmd(message):
     bot.send_message(uid, f"⛔ Мут на {minutes} мин\n{reason}")
     bot.send_message(message.chat.id, "✅ Мут выдан")
 
-    bot.send_message(SUPERADMIN,
-        f"‼️ @{message.from_user.username} выдал мут @{username}"
-    )
-
 
 # 🚫 ban
 @bot.message_handler(commands=['ban'])
@@ -169,6 +186,9 @@ def ban_cmd(message):
         return
 
     args = message.text.split()
+    if len(args) < 2:
+        return
+
     username = args[1].replace("@", "").lower()
 
     uid = usernames[username]
@@ -177,10 +197,6 @@ def ban_cmd(message):
     bot.send_message(uid, "⛔ Вы забанены")
     bot.send_message(message.chat.id, "✅ Бан выдан")
 
-    bot.send_message(SUPERADMIN,
-        f"‼️ @{message.from_user.username} забанил @{username}"
-    )
-
 
 # 🔓 unmute
 @bot.message_handler(commands=['unmute'])
@@ -188,10 +204,15 @@ def unmute_cmd(message):
     if message.from_user.id not in MODS:
         return
 
-    username = message.text.split()[1].replace("@", "").lower()
+    args = message.text.split()
+    if len(args) < 2:
+        return
+
+    username = args[1].replace("@", "").lower()
     uid = usernames[username]
 
     mutes.pop(uid, None)
+
     bot.send_message(uid, "✅ Мут снят")
     bot.send_message(message.chat.id, "✅ Ок")
 
@@ -202,10 +223,15 @@ def unban_cmd(message):
     if message.from_user.id not in MODS:
         return
 
-    username = message.text.split()[1].replace("@", "").lower()
+    args = message.text.split()
+    if len(args) < 2:
+        return
+
+    username = args[1].replace("@", "").lower()
     uid = usernames[username]
 
     bans.pop(uid, None)
+
     bot.send_message(uid, "✅ Вы разбанены")
     bot.send_message(message.chat.id, "✅ Ок")
 
@@ -222,21 +248,20 @@ def all_messages(message):
     uid = message.from_user.id
     text = message.text or message.caption or "📎 Медиа"
 
-
-    # ❗ проверка username
+    # ❗ ПРОВЕРКА USERNAME
     if uid not in MODS:
         if "@" not in (message.text or "") and "@" not in (message.caption or ""):
             bot.send_message(
                 uid,
-                "❌ Добавьте @username в объявление"
+                "❌ Добавьте @username в объявление!\n"
+                "Без этого объявление не будет опубликовано."
             )
             return
-
 
     # 👮 МОДЕРЫ
     if uid in MODS:
 
-        # ✅ ВОССТАНОВЛЕНО: можно писать пользователю напрямую
+        # 🔥 ВОТ ТВОЯ ФУНКЦИЯ (КАК В СТАРОМ КОДЕ)
         if message.reply_to_message:
             target = message.reply_to_message.from_user
 
@@ -245,7 +270,6 @@ def all_messages(message):
                 f"📩 Модератор @{message.from_user.username}:\n{text}"
             )
 
-        # чат модеров
         for m in MODS:
             if m != uid:
                 bot.send_message(
@@ -253,7 +277,6 @@ def all_messages(message):
                     f"🛡 @{message.from_user.username}:\n{text}"
                 )
         return
-
 
     # ❌ BAN
     if uid in bans:
@@ -266,7 +289,7 @@ def all_messages(message):
 
     bot.send_message(
         uid,
-        "⏳ Ожидайте, все объявления проверяются модераторами."
+        "⏳ Ожидайте, ваше объявление проверяется модераторами."
     )
 
     for m in MODS:
