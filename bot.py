@@ -3,7 +3,7 @@ import time
 import json
 import os
 
-TOKEN = "8454142474:AAHpLFHANoCmQQpDTO7iZpDVXvbaPUqNr30"
+TOKEN = "PASTE_NEW_TOKEN_HERE"
 bot = telebot.TeleBot(TOKEN)
 
 SUPERADMIN = 7905149857
@@ -37,7 +37,7 @@ usernames = data["usernames"]
 bans = {}
 mutes = {}
 
-# NEW: хранение медиа групп
+# для медиа групп
 media_groups = {}
 
 
@@ -104,7 +104,7 @@ def setadmin(message):
     bot.send_message(uid, "🎉 Вы теперь модератор\n/help")
 
 
-# ❌ deladmin (С ПОДСКАЗКОЙ)
+# ❌ deladmin
 @bot.message_handler(commands=['deladmin'])
 def deladmin(message):
     if message.from_user.id != SUPERADMIN:
@@ -210,35 +210,18 @@ def ban_cmd(message):
     )
 
 
-# 📢 all
-@bot.message_handler(commands=['all'])
-def all_cmd(message):
-    if message.from_user.id != SUPERADMIN:
-        return
-
-    text = message.text.replace("/all ", "")
-
-    for uid in users:
-        try:
-            bot.send_message(int(uid), text)
-        except:
-            pass
-
-
 # 🔓 UNMUTE
 @bot.message_handler(commands=['unmute'])
 def unmute_cmd(message):
     if message.from_user.id not in MODS:
         return
 
-    args = message.text.split()
-    username = args[1].replace("@", "").lower()
+    username = message.text.split()[1].replace("@", "").lower()
+    uid = usernames[username]
 
-    if username in usernames:
-        uid = usernames[username]
-        mutes.pop(uid, None)
-        bot.send_message(uid, "✅ Мут снят")
-        bot.send_message(message.chat.id, "✅ Ок")
+    mutes.pop(uid, None)
+    bot.send_message(uid, "✅ Мут снят")
+    bot.send_message(message.chat.id, "✅ Ок")
 
 
 # 🔓 UNBAN
@@ -247,14 +230,12 @@ def unban_cmd(message):
     if message.from_user.id not in MODS:
         return
 
-    args = message.text.split()
-    username = args[1].replace("@", "").lower()
+    username = message.text.split()[1].replace("@", "").lower()
+    uid = usernames[username]
 
-    if username in usernames:
-        uid = usernames[username]
-        bans.pop(uid, None)
-        bot.send_message(uid, "✅ Вы разбанены")
-        bot.send_message(message.chat.id, "✅ Ок")
+    bans.pop(uid, None)
+    bot.send_message(uid, "✅ Вы разбанены")
+    bot.send_message(message.chat.id, "✅ Ок")
 
 
 # 📩 ГЛАВНЫЕ СООБЩЕНИЯ
@@ -269,21 +250,30 @@ def all_messages(message):
     uid = message.from_user.id
     text = message.text or message.caption or "📎 Медиа"
 
-    # ❗ проверка username
+    # ✅ FIX: проверка username для альбомов
     if uid not in MODS:
-        if "@" not in (message.text or "") and "@" not in (message.caption or ""):
-            bot.send_message(
-                uid,
-                "❌ ОШИБКА\n\nДобавьте свой @username в объявление!\n"
-                "Без него заявка не будет рассмотрена."
-            )
-            return
+        if message.media_group_id:
+            if message.caption:
+                if "@" not in message.caption:
+                    bot.send_message(
+                        uid,
+                        "❌ ОШИБКА\n\nДобавьте свой @username в объявление!\n"
+                        "Без него заявка не будет рассмотрена."
+                    )
+                    return
+        else:
+            if "@" not in (message.text or "") and "@" not in (message.caption or ""):
+                bot.send_message(
+                    uid,
+                    "❌ ОШИБКА\n\nДобавьте свой @username в объявление!\n"
+                    "Без него заявка не будет рассмотрена."
+                )
+                return
 
     # 👮 МОДЕРЫ
     if uid in MODS:
 
         if message.reply_to_message:
-
             target = message.reply_to_message.forward_from or message.reply_to_message.from_user
 
             bot.send_message(
@@ -323,7 +313,7 @@ def all_messages(message):
         "⏳ Ожидайте, все объявления проверяются модераторами, не нужно дублировать сообщение."
     )
 
-    # NEW: обработка медиа групп
+    # ✅ FIX: отправка всех фото
     if message.media_group_id:
         group_id = message.media_group_id
 
@@ -334,16 +324,13 @@ def all_messages(message):
 
         time.sleep(1)
 
-        if len(media_groups[group_id]) >= 1:
-            for msg in media_groups[group_id]:
-                for m in MODS:
-                    bot.forward_message(m, msg.chat.id, msg.message_id)
+        for msg in media_groups[group_id]:
+            for m in MODS:
+                bot.forward_message(m, msg.chat.id, msg.message_id)
 
-            del media_groups[group_id]
-
+        del media_groups[group_id]
         return
 
-    # обычные сообщения
     for m in MODS:
         bot.forward_message(m, message.chat.id, message.message_id)
 
