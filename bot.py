@@ -37,9 +37,6 @@ usernames = data["usernames"]
 bans = {}
 mutes = {}
 
-# 🔥 фикс для reply (НЕ ЛОМАЕМ FORWARD)
-message_user_map = {}
-
 
 def register_user(message):
     user_id = str(message.from_user.id)
@@ -63,19 +60,13 @@ def start(message):
         message.chat.id,
         "Привет! 👋\n"
         "Ты попал в Б/У рынок ASTANA.\n\n"
-
         "📌 Для подачи объявления обязательно укажи:\n"
         "1. Куплю / Продам / Набор в ТК или в семью\n"
         "2. Цена / Бюджет\n"
         "3. Контакт (username, пример: @cripta527)\n\n"
-
         "❗ Важно:\n"
         "Без username заявка будет отклонена.\n"
-        "Если ты не указал @username — бот НЕ пропустит объявление.\n\n"
-
         "🚫 Не спамить\n"
-        "Разрешена реклама семьи / СК / ТК и т.д.\n\n"
-
         "📩 Связь: @cripta527"
     )
 
@@ -84,6 +75,7 @@ def start(message):
 @bot.message_handler(commands=['setadmin'])
 def setadmin(message):
     if message.from_user.id != SUPERADMIN:
+        bot.send_message(message.chat.id, "❌ Нет доступа")
         return
 
     args = message.text.split()
@@ -179,6 +171,11 @@ def mute_cmd(message):
     mutes[uid] = time.time() + minutes * 60
 
     bot.send_message(uid, f"⛔ Мут {minutes} мин\n{reason}")
+    bot.send_message(message.chat.id, "✅ Мут выдан")
+
+    bot.send_message(SUPERADMIN,
+        f"‼️ Модер @{message.from_user.username} выдал мут @{username}"
+    )
 
 
 # 🚫 ban
@@ -200,6 +197,11 @@ def ban_cmd(message):
     bans[uid] = True
 
     bot.send_message(uid, "⛔ Вы забанены")
+    bot.send_message(message.chat.id, "✅ Бан выдан")
+
+    bot.send_message(SUPERADMIN,
+        f"‼️ Модер @{message.from_user.username} забанил @{username}"
+    )
 
 
 # 📢 all
@@ -224,17 +226,13 @@ def unmute_cmd(message):
         return
 
     args = message.text.split()
-    if len(args) < 2:
-        return
-
     username = args[1].replace("@", "").lower()
 
     if username in usernames:
         uid = usernames[username]
         mutes.pop(uid, None)
-
         bot.send_message(uid, "✅ Мут снят")
-        bot.send_message(message.chat.id, "✅ Мут снят")
+        bot.send_message(message.chat.id, "✅ Ок")
 
 
 # 🔓 UNBAN
@@ -244,20 +242,16 @@ def unban_cmd(message):
         return
 
     args = message.text.split()
-    if len(args) < 2:
-        return
-
     username = args[1].replace("@", "").lower()
 
     if username in usernames:
         uid = usernames[username]
         bans.pop(uid, None)
-
         bot.send_message(uid, "✅ Вы разбанены")
-        bot.send_message(message.chat.id, "✅ Разбан выполнен")
+        bot.send_message(message.chat.id, "✅ Ок")
 
 
-# 📩 СООБЩЕНИЯ
+# 📩 ГЛАВНЫЕ СООБЩЕНИЯ
 @bot.message_handler(content_types=['text', 'photo', 'video'])
 def all_messages(message):
 
@@ -267,48 +261,43 @@ def all_messages(message):
     register_user(message)
 
     uid = message.from_user.id
-    username = message.from_user.username
-
     text = message.text or message.caption or "📎 Медиа"
 
-    # 🔴 АВТО-ОТВЕТ ЕСЛИ НЕТ USERNAME
+    # ❗ НОВОЕ: проверка @username в объявлении
     if uid not in MODS:
-        if not username:
+        if "@" not in (message.text or "") and "@" not in (message.caption or ""):
             bot.send_message(
                 uid,
-                "⚠️ Укажите свой @username в Telegram!\n\n"
-                "Без него ваше объявление не будет принято модераторами."
+                "❌ ОШИБКА\n\nДобавьте свой @username в объявление!\n"
+                "Без него заявка не будет рассмотрена."
             )
             return
 
-    # сохраняем для reply FIX
-    message_user_map[message.message_id] = uid
-
-    # 👮 МОДЕРЫ
+    # 👮 модеры
     if uid in MODS:
 
+        # FIX: теперь НЕ зависит от forward_from
         if message.reply_to_message:
-            replied_id = message.reply_to_message.message_id
-            target_id = message_user_map.get(replied_id)
 
-            if target_id:
+            target_user = message.reply_to_message.from_user
+
+            bot.send_message(
+                target_user.id,
+                f"📩 Модератор ответил:\n{text}"
+            )
+
+            for m in MODS:
                 bot.send_message(
-                    target_id,
-                    f"📩 Модератор ответил:\n{text}"
+                    m,
+                    f"📤 @{message.from_user.username} → @{target_user.username}\n{text}"
                 )
-
-                for m in MODS:
-                    bot.send_message(
-                        m,
-                        f"📤 @{username} → USER_ID {target_id}\n{text}"
-                    )
             return
 
         for m in MODS:
             if m != uid:
                 bot.send_message(
                     m,
-                    f"🛡 Модератор @{username}:\n{text}"
+                    f"🛡 Модератор @{message.from_user.username}:\n{text}"
                 )
         return
 
@@ -323,7 +312,7 @@ def all_messages(message):
 
     bot.send_message(
         uid,
-        "⏳ Ожидайте, ваше объявление отправлено на проверку."
+        "⏳ Ожидайте, все объявления проверяются модераторами."
     )
 
     for m in MODS:
