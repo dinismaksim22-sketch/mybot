@@ -37,7 +37,7 @@ usernames = data["usernames"]
 bans = {}
 mutes = {}
 
-# для медиа групп
+# 🔥 НОВОЕ: хранение медиа-групп
 media_groups = {}
 
 
@@ -210,7 +210,22 @@ def ban_cmd(message):
     )
 
 
-# 🔓 UNMUTE
+# 📢 ALL (вернул как ты просил)
+@bot.message_handler(commands=['all'])
+def all_cmd(message):
+    if message.from_user.id != SUPERADMIN:
+        return
+
+    text = message.text.replace("/all ", "")
+
+    for uid in users:
+        try:
+            bot.send_message(int(uid), text)
+        except:
+            pass
+
+
+# 🔓 unmute
 @bot.message_handler(commands=['unmute'])
 def unmute_cmd(message):
     if message.from_user.id not in MODS:
@@ -224,7 +239,7 @@ def unmute_cmd(message):
     bot.send_message(message.chat.id, "✅ Ок")
 
 
-# 🔓 UNBAN
+# 🔓 unban
 @bot.message_handler(commands=['unban'])
 def unban_cmd(message):
     if message.from_user.id not in MODS:
@@ -250,27 +265,43 @@ def all_messages(message):
     uid = message.from_user.id
     text = message.text or message.caption or "📎 Медиа"
 
-    # ✅ FIX: проверка username для альбомов
-    if uid not in MODS:
-        if message.media_group_id:
-            if message.caption:
-                if "@" not in message.caption:
-                    bot.send_message(
-                        uid,
-                        "❌ ОШИБКА\n\nДобавьте свой @username в объявление!\n"
-                        "Без него заявка не будет рассмотрена."
-                    )
-                    return
-        else:
-            if "@" not in (message.text or "") and "@" not in (message.caption or ""):
-                bot.send_message(
-                    uid,
-                    "❌ ОШИБКА\n\nДобавьте свой @username в объявление!\n"
-                    "Без него заявка не будет рассмотрена."
-                )
-                return
+    # 🔥 FIX: если это альбом — собираем ВСЕ
+    if message.media_group_id:
+        gid = message.media_group_id
 
-    # 👮 МОДЕРЫ
+        if gid not in media_groups:
+            media_groups[gid] = []
+
+        media_groups[gid].append(message)
+
+        # небольшая задержка чтобы собрать все фото
+        time.sleep(1)
+
+        if gid in media_groups:
+            msgs = media_groups.pop(gid)
+
+            # проверка username ТОЛЬКО 1 раз
+            if uid not in MODS:
+                ok = any("@" in (m.caption or "") for m in msgs)
+                if not ok:
+                    bot.send_message(uid, "❌ Добавь @username в подпись к фото")
+                    return
+
+            for m in MODS:
+                for msg in msgs:
+                    bot.forward_message(m, msg.chat.id, msg.message_id)
+        return
+
+    # ❗ обычная проверка
+    if uid not in MODS:
+        if "@" not in (message.text or "") and "@" not in (message.caption or ""):
+            bot.send_message(
+                uid,
+                "❌ ОШИБКА\n\nДобавьте свой @username в объявление!"
+            )
+            return
+
+    # 👮 модеры (ответ)
     if uid in MODS:
 
         if message.reply_to_message:
@@ -312,24 +343,6 @@ def all_messages(message):
         uid,
         "⏳ Ожидайте, все объявления проверяются модераторами, не нужно дублировать сообщение."
     )
-
-    # ✅ FIX: отправка всех фото
-    if message.media_group_id:
-        group_id = message.media_group_id
-
-        if group_id not in media_groups:
-            media_groups[group_id] = []
-
-        media_groups[group_id].append(message)
-
-        time.sleep(1)
-
-        for msg in media_groups[group_id]:
-            for m in MODS:
-                bot.forward_message(m, msg.chat.id, msg.message_id)
-
-        del media_groups[group_id]
-        return
 
     for m in MODS:
         bot.forward_message(m, message.chat.id, message.message_id)
