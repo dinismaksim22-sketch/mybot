@@ -129,7 +129,7 @@ def deladmin(message):
         bot.send_message(message.chat.id, "✅ Готово")
 
 
-# 📘 help
+# 📘 help (ДОБАВИЛ ПОДСКАЗКИ)
 @bot.message_handler(commands=['help'])
 def help_cmd(message):
     if message.from_user.id not in MODS:
@@ -137,7 +137,13 @@ def help_cmd(message):
 
     bot.send_message(
         message.chat.id,
-        "/id @user\n/mute @user время причина\n/ban @user причина\n/unmute @user\n/unban @user"
+        "📘 Команды модератора:\n\n"
+        "/id @user — узнать ID\n"
+        "/mute @user время причина — выдать мут\n"
+        "/ban @user причина — забанить\n"
+        "/unmute @user — снять мут\n"
+        "/unban @user — снять бан\n\n"
+        "💬 Ответ пользователю: reply на сообщение"
     )
 
 
@@ -149,56 +155,76 @@ def get_id(message):
 
     args = message.text.split()
     if len(args) < 2:
+        bot.send_message(message.chat.id, "❗ Используй: /id @user")
         return
 
     username = args[1].replace("@", "").lower()
 
     if username in usernames:
         bot.send_message(message.chat.id, str(usernames[username]))
+    else:
+        bot.send_message(message.chat.id, "❌ Не найден")
 
 
-# 🔇 mute
+# 🔇 mute (С ПОДСКАЗКОЙ + ЛОГ)
 @bot.message_handler(commands=['mute'])
 def mute_cmd(message):
     if message.from_user.id not in MODS:
         return
 
     args = message.text.split()
-    if len(args) < 3:
+    if len(args) < 4:
+        bot.send_message(message.chat.id, "❗ Используй: /mute @user 10 причина")
         return
 
     username = args[1].replace("@", "").lower()
     minutes = int(args[2])
-    reason = " ".join(args[3:]) if len(args) > 3 else ""
+    reason = " ".join(args[3:])
 
     if username not in usernames:
+        bot.send_message(message.chat.id, "❌ Пользователь не найден")
         return
 
     uid = usernames[username]
     mutes[uid] = time.time() + minutes * 60
 
-    bot.send_message(uid, f"⛔ Мут {minutes} мин\n{reason}")
+    bot.send_message(uid, f"⛔ Мут на {minutes} мин\n{reason}")
+    bot.send_message(message.chat.id, "✅ Вы успешно выдали мут")
+
+    bot.send_message(
+        SUPERADMIN,
+        f"‼️ @{message.from_user.username} ВЫДАЛ МУТ @{username}\nПричина: {reason}"
+    )
 
 
-# 🚫 ban
+# 🚫 ban (С ПОДСКАЗКОЙ + ЛОГ)
 @bot.message_handler(commands=['ban'])
 def ban_cmd(message):
     if message.from_user.id not in MODS:
         return
 
     args = message.text.split()
-    if len(args) < 2:
+    if len(args) < 3:
+        bot.send_message(message.chat.id, "❗ Используй: /ban @user причина")
         return
 
     username = args[1].replace("@", "").lower()
+    reason = " ".join(args[2:])
 
     if username not in usernames:
+        bot.send_message(message.chat.id, "❌ Пользователь не найден")
         return
 
     uid = usernames[username]
     bans[uid] = True
 
-    bot.send_message(uid, "⛔ Вы забанены")
+    bot.send_message(uid, f"⛔ Вы забанены\n{reason}")
+    bot.send_message(message.chat.id, "✅ Вы успешно забанили пользователя")
+
+    bot.send_message(
+        SUPERADMIN,
+        f"‼️ @{message.from_user.username} ЗАБАНИЛ @{username}\nПричина: {reason}"
+    )
 
 
 # 📢 all
@@ -216,7 +242,7 @@ def all_cmd(message):
             pass
 
 
-# 🔓 UNMUTE (ДОБАВЛЕНО)
+# 🔓 UNMUTE
 @bot.message_handler(commands=['unmute'])
 def unmute_cmd(message):
     if message.from_user.id not in MODS:
@@ -224,6 +250,7 @@ def unmute_cmd(message):
 
     args = message.text.split()
     if len(args) < 2:
+        bot.send_message(message.chat.id, "❗ Используй: /unmute @user")
         return
 
     username = args[1].replace("@", "").lower()
@@ -233,10 +260,15 @@ def unmute_cmd(message):
         mutes.pop(uid, None)
 
         bot.send_message(uid, "✅ Мут снят")
-        bot.send_message(message.chat.id, "✅ Ок")
+        bot.send_message(message.chat.id, "✅ Мут снят")
+
+        bot.send_message(
+            SUPERADMIN,
+            f"‼️ @{message.from_user.username} СНЯЛ МУТ @{username}"
+        )
 
 
-# 🔓 UNBAN (ДОБАВЛЕНО)
+# 🔓 UNBAN
 @bot.message_handler(commands=['unban'])
 def unban_cmd(message):
     if message.from_user.id not in MODS:
@@ -244,6 +276,7 @@ def unban_cmd(message):
 
     args = message.text.split()
     if len(args) < 2:
+        bot.send_message(message.chat.id, "❗ Используй: /unban @user")
         return
 
     username = args[1].replace("@", "").lower()
@@ -253,10 +286,15 @@ def unban_cmd(message):
         bans.pop(uid, None)
 
         bot.send_message(uid, "✅ Вы разбанены")
-        bot.send_message(message.chat.id, "✅ Ок")
+        bot.send_message(message.chat.id, "✅ Разбан выполнен")
+
+        bot.send_message(
+            SUPERADMIN,
+            f"‼️ @{message.from_user.username} РАЗБАНИЛ @{username}"
+        )
 
 
-# 📩 СООБЩЕНИЯ (ИСПРАВЛЕНО МЕДИА + ПЕРЕСЫЛКА)
+# 📩 СООБЩЕНИЯ (НЕ ТРОГАЮ ЛОГИКУ)
 @bot.message_handler(content_types=['text', 'photo', 'video'])
 def all_messages(message):
 
@@ -309,7 +347,6 @@ def all_messages(message):
         "⏳ Ожидайте, все объявления проверяются модераторами."
     )
 
-    # 📩 ВАЖНО: ВСЕ МЕДИА КАК ПЕРЕСЛАНОЕ (с 'Переслано от')
     for m in MODS:
         bot.forward_message(m, message.chat.id, message.message_id)
 
