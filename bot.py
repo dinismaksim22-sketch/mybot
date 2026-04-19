@@ -4,7 +4,7 @@ import json
 import os
 from telebot import types
 
-TOKEN = "8454142474:AAHpLFHANoCmQQpDTO7iZpDVXvbaPUqNr30"
+TOKEN = "8454142474:AAFPX2iAa9FEIAHfLndTbR1h79NZepDJdDs"
 bot = telebot.TeleBot(TOKEN)
 
 SUPERADMIN = 7905149857
