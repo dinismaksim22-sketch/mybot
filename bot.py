@@ -165,6 +165,7 @@ def deladmin(message):
 
         bot.send_message(message.chat.id, "✅ Готово")
 
+
 @bot.message_handler(content_types=['text', 'photo', 'video'])
 def all_messages(message):
 
