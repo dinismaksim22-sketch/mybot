@@ -4,44 +4,70 @@ import json
 import os
 from telebot import types
 
-TOKEN = os.getenv("8454142474:AAHpLFHANoCmQQpDTO7iZpDVXvbaPUqNr30")  # вставь токен или через env
+TOKEN = os.getenv("8454142474:AAHpLFHANoCmQQpDTO7iZpDVXvbaPUqNr30")  # или вставь напрямую
 bot = telebot.TeleBot(TOKEN)
 
 SUPERADMIN = 7905149857
 CHANNEL_ID = "@br_bu_astana"
-
 DATA_FILE = "data.json"
 
-# ================= DATA =================
+# ================= SAFE LOAD =================
 def load_data():
+    default = {
+        "mods": [SUPERADMIN],
+        "users": {},
+        "usernames": {}
+    }
+
     if not os.path.exists(DATA_FILE):
-        return {"mods": [SUPERADMIN], "users": {}, "usernames": {}}
+        return default
+
     try:
         with open(DATA_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+
+        if not isinstance(data, dict):
+            return default
+
+        data.setdefault("mods", [SUPERADMIN])
+        data.setdefault("users", {})
+        data.setdefault("usernames", {})
+
+        if data["mods"] is None:
+            data["mods"] = [SUPERADMIN]
+        if data["users"] is None:
+            data["users"] = {}
+        if data["usernames"] is None:
+            data["usernames"] = {}
+
+        return data
+
     except:
-        return {"mods": [SUPERADMIN], "users": {}, "usernames": {}}
+        return default
 
 
 def save_data():
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4, ensure_ascii=False)
+    try:
+        with open(DATA_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
+    except:
+        pass
 
 
 data = load_data()
 
-MODS = set(data["mods"])
-users = data["users"]
-usernames = data["usernames"]
+MODS = set(data.get("mods") or [SUPERADMIN])
+users = data.get("users") or {}
+usernames = data.get("usernames") or {}
 
 bans = {}
 mutes = {}
 
 pending_posts = {}
 media_groups = {}
-reject_reason_wait = {}
+reject_wait = {}
 
-# ================= USER =================
+# ================= USER REGISTER =================
 def register_user(message):
     uid = str(message.from_user.id)
     username = message.from_user.username
@@ -54,7 +80,8 @@ def register_user(message):
 
     save_data()
 
-# ================= KEYBOARD =================
+
+# ================= MOD BUTTONS =================
 def mod_kb(post_id):
     kb = types.InlineKeyboardMarkup()
     kb.add(
@@ -63,12 +90,13 @@ def mod_kb(post_id):
     )
     return kb
 
+
 # ================= CALLBACK =================
 @bot.callback_query_handler(func=lambda call: True)
 def callback(call):
     data_cb = call.data
 
-    # ===== APPROVE =====
+    # APPROVE
     if data_cb.startswith("approve_"):
         post_id = data_cb.split("_")[1]
         post = pending_posts.get(post_id)
@@ -76,7 +104,6 @@ def callback(call):
         if not post:
             return
 
-        # альбом
         if post["type"] == "album":
             media = []
             for i, m in enumerate(post["messages"]):
@@ -90,30 +117,27 @@ def callback(call):
             if media:
                 bot.send_media_group(CHANNEL_ID, media)
 
-        # одиночное
         elif post["type"] == "single":
             bot.copy_message(CHANNEL_ID, post["chat_id"], post["message_id"])
 
         pending_posts.pop(post_id, None)
         bot.answer_callback_query(call.id, "Одобрено")
 
-    # ===== REJECT =====
+    # REJECT
     elif data_cb.startswith("reject_"):
         post_id = data_cb.split("_")[1]
-        reject_reason_wait[call.from_user.id] = post_id
+        reject_wait[call.from_user.id] = post_id
 
         bot.send_message(call.message.chat.id, "✍️ Напишите причину отказа")
         bot.answer_callback_query(call.id)
+
 
 # ================= START =================
 @bot.message_handler(commands=['start'])
 def start(message):
     register_user(message)
+    bot.send_message(message.chat.id, "👋 Отправь объявление")
 
-    bot.send_message(message.chat.id,
-        "👋 Добро пожаловать!\n"
-        "Отправь объявление (текст / фото / видео)\n"
-    )
 
 # ================= HELP =================
 @bot.message_handler(commands=['help'])
@@ -122,15 +146,9 @@ def help_cmd(message):
         return
 
     bot.send_message(message.chat.id,
-        "/id @user\n"
-        "/mute @user минуты причина\n"
-        "/unmute @user\n"
-        "/ban @user\n"
-        "/unban @user\n"
-        "/setadmin @user\n"
-        "/deladmin @user\n"
-        "/all текст"
+        "/id @user\n/mute @user мин причина\n/unmute @user\n/ban @user\n/unban @user\n/setadmin @user\n/deladmin @user\n/all текст"
     )
+
 
 # ================= ID =================
 @bot.message_handler(commands=['id'])
@@ -140,15 +158,13 @@ def id_cmd(message):
 
     args = message.text.split()
     if len(args) < 2:
-        bot.send_message(message.chat.id, "❌ /id @user")
         return
 
     username = args[1].replace("@", "").lower()
 
     if username in usernames:
         bot.send_message(message.chat.id, str(usernames[username]))
-    else:
-        bot.send_message(message.chat.id, "❌ Не найден")
+
 
 # ================= MUTE =================
 @bot.message_handler(commands=['mute'])
@@ -158,21 +174,17 @@ def mute_cmd(message):
 
     args = message.text.split()
     if len(args) < 3:
-        bot.send_message(message.chat.id, "❌ /mute @user минуты причина")
         return
 
     username = args[1].replace("@", "").lower()
     minutes = int(args[2])
     reason = " ".join(args[3:]) if len(args) > 3 else ""
 
-    if username not in usernames:
-        return
+    if username in usernames:
+        uid = usernames[username]
+        mutes[uid] = time.time() + minutes * 60
+        bot.send_message(uid, f"🔇 Мут {minutes} мин\n{reason}")
 
-    uid = usernames[username]
-    mutes[uid] = time.time() + minutes * 60
-
-    bot.send_message(uid, f"🔇 Мут {minutes} мин\n{reason}")
-    bot.send_message(message.chat.id, "✅ Заблокирован")
 
 # ================= UNMUTE =================
 @bot.message_handler(commands=['unmute'])
@@ -180,12 +192,11 @@ def unmute_cmd(message):
     if message.from_user.id not in MODS:
         return
 
-    args = message.text.split()
-    username = args[1].replace("@", "").lower()
+    username = message.text.split()[1].replace("@", "").lower()
 
     if username in usernames:
         mutes.pop(usernames[username], None)
-        bot.send_message(message.chat.id, "✅ Размучен")
+
 
 # ================= BAN =================
 @bot.message_handler(commands=['ban'])
@@ -197,7 +208,7 @@ def ban_cmd(message):
 
     if username in usernames:
         bans[usernames[username]] = True
-        bot.send_message(message.chat.id, "⛔ Забанен")
+
 
 # ================= UNBAN =================
 @bot.message_handler(commands=['unban'])
@@ -209,7 +220,7 @@ def unban_cmd(message):
 
     if username in usernames:
         bans.pop(usernames[username], None)
-        bot.send_message(message.chat.id, "✅ Разбанен")
+
 
 # ================= SETADMIN =================
 @bot.message_handler(commands=['setadmin'])
@@ -225,8 +236,6 @@ def setadmin(message):
         data["mods"] = list(MODS)
         save_data()
 
-        bot.send_message(uid, "👮 Вы стали модератором")
-        bot.send_message(message.chat.id, "✅ Добавлен")
 
 # ================= DELADMIN =================
 @bot.message_handler(commands=['deladmin'])
@@ -242,8 +251,6 @@ def deladmin(message):
         data["mods"] = list(MODS)
         save_data()
 
-        bot.send_message(uid, "❌ Вы сняты")
-        bot.send_message(message.chat.id, "❌ Удалён")
 
 # ================= ALL =================
 @bot.message_handler(commands=['all'])
@@ -254,7 +261,7 @@ def all_cmd(message):
     text = message.text.replace("/all", "").strip()
 
     if not text:
-        bot.send_message(message.chat.id, "❌ /all текст")
+        bot.send_message(message.chat.id, "❌ Напишите текст")
         return
 
     for uid in users:
@@ -263,7 +270,8 @@ def all_cmd(message):
         except:
             pass
 
-# ================= MAIN MESSAGES =================
+
+# ================= MAIN HANDLER =================
 @bot.message_handler(content_types=['text', 'photo', 'video'])
 def handle(message):
 
@@ -281,7 +289,7 @@ def handle(message):
     if uid in mutes and time.time() < mutes[uid]:
         return
 
-    # ===== ALBUM =====
+    # ALBUM
     if message.media_group_id:
         gid = message.media_group_id
 
@@ -298,17 +306,12 @@ def handle(message):
             "messages": msgs
         }
 
-        text = "📢 Новое объявление (альбом)\n"
-        for m in msgs:
-            if m.caption:
-                text += m.caption + "\n"
-
         for mod in MODS:
-            bot.send_message(mod, text, reply_markup=mod_kb(post_id))
+            bot.send_message(mod, "📢 Альбом", reply_markup=mod_kb(post_id))
 
         return
 
-    # ===== SINGLE =====
+    # SINGLE
     pending_posts[post_id] = {
         "type": "single",
         "chat_id": message.chat.id,
@@ -317,12 +320,13 @@ def handle(message):
 
     for mod in MODS:
         bot.copy_message(mod, message.chat.id, message.message_id)
-        bot.send_message(mod, "📌 Проверка:", reply_markup=mod_kb(post_id))
+        bot.send_message(mod, "📌 Проверка", reply_markup=mod_kb(post_id))
 
-# ================= REJECT REASON =================
-@bot.message_handler(func=lambda m: m.from_user.id in reject_reason_wait)
+
+# ================= REJECT TEXT =================
+@bot.message_handler(func=lambda m: m.from_user.id in reject_wait)
 def reject_text(message):
-    post_id = reject_reason_wait.pop(message.from_user.id)
+    post_id = reject_wait.pop(message.from_user.id)
 
     post = pending_posts.get(post_id)
     if not post:
@@ -331,16 +335,15 @@ def reject_text(message):
     try:
         uid = post.get("user_id")
         if uid:
-            bot.send_message(uid, f"❌ Вам отказано\nПричина: {message.text}")
+            bot.send_message(uid, f"❌ Отказ\nПричина: {message.text}")
     except:
         pass
 
-    bot.send_message(message.chat.id, "📩 Причина отправлена")
 
-# ================= UNKNOWN COMMAND =================
+# ================= UNKNOWN =================
 @bot.message_handler(func=lambda m: m.text and m.text.startswith("/"))
 def unknown(message):
-    bot.send_message(message.chat.id, "❌ Такой команды нет или нет доступа")
+    bot.send_message(message.chat.id, "❌ Неизвестная команда")
 
-# ================= RUN =================
+
 bot.infinity_polling(skip_pending=True)
