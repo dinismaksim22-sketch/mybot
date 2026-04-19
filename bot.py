@@ -8,7 +8,7 @@ TOKEN = "8454142474:AAHpLFHANoCmQQpDTO7iZpDVXvbaPUqNr30"
 bot = telebot.TeleBot(TOKEN)
 
 SUPERADMIN = 7905149857
-CHANNEL_ID = -@br_bu_astana  # ВСТАВЬ СЮДА СВОЙ КАНАЛ
+CHANNEL_ID = "@br_bu_astana"  # ВСТАВЬ СЮДА СВОЙ КАНАЛ
 
 DATA_FILE = "data.json"
 
