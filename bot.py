@@ -487,4 +487,5 @@ def all_messages(message):
             bot.send_message(m, f"📢 **Новое объявление** от ID: {uid}\nВыберите действие:", reply_markup=mod_kb(post_id), parse_mode="Markdown")
         except: pass
 
+print("BOT RUNNING")
 bot.infinity_polling(skip_pending=True)
