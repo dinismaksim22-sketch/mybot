@@ -93,64 +93,67 @@ def mod_kb(post_id):
 @bot.callback_query_handler(func=lambda call: True)
 def callback(call):
     try:
-        # 🔥 ВАЖНЕЙШИЙ ФИКС (убирает вечную загрузку кнопок)
-        bot.answer_callback_query(call.id)
+        print("CALLBACK:", call.data)
 
         data_cb = call.data
         mod_name = call.from_user.username or call.from_user.first_name
 
-        if data_cb.startswith("approve_"):
-            post_id = data_cb.split("_")[1]
-            post = pending_posts.get(post_id)
+        # 🔥 СНАЧАЛА СНИМАЕМ ЗАГРУЗКУ (ВАЖНО ПРЯМО ПЕРВОЙ СТРОКОЙ)
+        try:
+            bot.answer_callback_query(call.id)
+        except:
+            pass
 
+        if "_" not in data_cb:
+            return
+
+        action, post_id = data_cb.split("_", 1)
+
+        post = pending_posts.get(post_id)
+
+        # 🔥 ЗАЩИТА ОТ ПУСТЫХ ДАННЫХ
+        if action == "approve":
             if not post:
-                bot.answer_callback_query(call.id, "❌ Пост уже обработан")
+                bot.send_message(call.message.chat.id, "❌ Пост не найден или уже обработан")
                 return
-
-            if post["type"] in ["text", "photo"]:
-                bot.copy_message(CHANNEL_ID, post["chat_id"], post["message_id"])
-            elif post["type"] == "album":
-                bot.send_media_group(CHANNEL_ID, post["media"])
 
             try:
-                bot.send_message(post["user_id"], "✅ Ваше объявление успешно опубликовано!")
-            except:
-                pass
+                if post["type"] in ["text", "photo", "video"]:
+                    bot.copy_message(CHANNEL_ID, post["chat_id"], post["message_id"])
 
-            notify_mods(f"✅ Модератор @{mod_name} одобрил объявление.")
+                elif post["type"] == "album":
+                    bot.send_media_group(CHANNEL_ID, post["media"])
 
-            pending_posts.pop(post_id, None)
+                try:
+                    bot.send_message(post["user_id"], "✅ Одобрено")
+                except:
+                    pass
 
-            bot.edit_message_reply_markup(
-                call.message.chat.id,
-                call.message.message_id,
-                reply_markup=None
-            )
+                notify_mods(f"✅ @{mod_name} одобрил объявление")
 
-            bot.answer_callback_query(call.id, "✅ Одобрено")
+                pending_posts.pop(post_id, None)
 
-        elif data_cb.startswith("reject_"):
-            post_id = data_cb.split("_")[1]
+                bot.edit_message_reply_markup(
+                    call.message.chat.id,
+                    call.message.message_id,
+                    reply_markup=None
+                )
 
-            if post_id not in pending_posts:
-                bot.answer_callback_query(call.id, "❌ Уже обработано")
-                return
+            except Exception as e:
+                print("APPROVE ERROR:", e)
+                bot.send_message(call.message.chat.id, "❌ Ошибка при публикации")
 
+        elif action == "reject":
             waiting_for_reject[call.from_user.id] = post_id
-            bot.send_message(call.message.chat.id, "✍️ Напишите причину отказа:")
+            bot.send_message(call.message.chat.id, "✍️ Причина отказа:")
 
-        elif data_cb.startswith("msg_"):
-            post_id = data_cb.split("_")[1]
-
-            if post_id not in pending_posts:
-                bot.answer_callback_query(call.id, "❌ Уже обработано")
-                return
-
+        elif action == "msg":
             waiting_for_msg[call.from_user.id] = post_id
-            bot.send_message(call.message.chat.id, "✍️ Напишите сообщение участнику:")
+            bot.send_message(call.message.chat.id, "✍️ Сообщение пользователю:")
 
     except Exception as e:
-        print("Callback error:", e)
+        print("CRITICAL CALLBACK ERROR:", e)
+
         try:
             bot.answer_callback_query(call.id, "❌ Ошибка")
         except:
