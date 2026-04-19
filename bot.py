@@ -94,6 +94,9 @@ def mod_kb(post_id):
 # 🔥 CALLBACK (Кнопки) - ИСПРАВЛЕНА ВЕЧНАЯ ЗАГРУЗКА
 @bot.callback_query_handler(func=lambda call: True)
 def callback(call):
+    # ФИКС: Мгновенно отвечаем на запрос, чтобы убрать "часики"
+    bot.answer_callback_query(call.id)
+    
     try:
         data_cb = call.data
         mod_name = call.from_user.username or call.from_user.first_name
@@ -105,12 +108,10 @@ def callback(call):
             post = pending_posts.get(post_id)
 
             if not post:
-                bot.answer_callback_query(call.id, "❌ Заявка устарела (после перезапуска бота) или уже обработана другим модератором.", show_alert=True)
+                bot.send_message(chat_id, "❌ Заявка устарела (после перезапуска бота) или уже обработана другим модератором.")
                 try: bot.edit_message_reply_markup(chat_id, msg_id, reply_markup=None) 
                 except: pass
                 return
-
-            bot.answer_callback_query(call.id, "⏳ Одобряем и публикуем...")
 
             # Отправляем в канал
             try:
@@ -138,15 +139,14 @@ def callback(call):
             post_id = data_cb.split("_")[1]
             
             if post_id not in pending_posts:
-                bot.answer_callback_query(call.id, "❌ Заявка уже обработана или устарела.", show_alert=True)
+                bot.send_message(chat_id, "❌ Заявка уже обработана или устарела.")
                 try: bot.edit_message_reply_markup(chat_id, msg_id, reply_markup=None)
                 except: pass
                 return
                 
             waiting_for_reject[call.from_user.id] = post_id
-            bot.answer_callback_query(call.id)
             
-            # Убираем кнопки сразу, чтобы показать, что процесс отказа запущен
+            # Убираем кнопки сразу
             try: bot.edit_message_reply_markup(chat_id, msg_id, reply_markup=None)
             except: pass
             
@@ -156,17 +156,15 @@ def callback(call):
             post_id = data_cb.split("_")[1]
             
             if post_id not in pending_posts:
-                bot.answer_callback_query(call.id, "❌ Заявка уже обработана или устарела.", show_alert=True)
+                bot.send_message(chat_id, "❌ Заявка уже обработана или устарела.")
                 try: bot.edit_message_reply_markup(chat_id, msg_id, reply_markup=None)
                 except: pass
                 return
                 
             waiting_for_msg[call.from_user.id] = post_id
-            bot.answer_callback_query(call.id)
             bot.send_message(chat_id, "✍️ Напишите сообщение участнику в чат:")
             
     except Exception as e:
-        bot.answer_callback_query(call.id, "❌ Произошла ошибка системы.", show_alert=False)
         print(f"Callback Error: {e}")
 
 # 👑 КОМАНДЫ
@@ -400,7 +398,8 @@ def all_messages(message):
                 text_to_send = f"👮‍♂️ **Модератор @{mod_name}:**\n{message.text or '[Медиафайл]'}"
                 try: bot.send_message(m, text_to_send, parse_mode="Markdown")
                 except: pass
-        return 
+        if message.text and not message.text.startswith('/') and "@" not in message.text:
+            return 
 
     # --- ЛОГИКА ПОДАЧИ ОБЪЯВЛЕНИЙ ДЛЯ УЧАСТНИКОВ ---
     register_user(message)
