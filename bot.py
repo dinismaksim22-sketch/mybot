@@ -2,14 +2,15 @@ import telebot
 import time
 import json
 import os
-import threading
 from telebot import types
 
 TOKEN = "8454142474:AAHpLFHANoCmQQpDTO7iZpDVXvbaPUqNr30"
 bot = telebot.TeleBot(TOKEN)
 
 SUPERADMIN = 7905149857
+
 DATA_FILE = "data.json"
+
 CHANNEL_ID = "@br_bu_astana"
 
 # 🔥 СТРУКТУРЫ ДАННЫХ
@@ -57,11 +58,10 @@ usernames = data["usernames"]
 bans = {}
 mutes = {}
 
-# Временные хранилища
 media_groups = {}
 pending_posts = {}
-waiting_for_reject = {} # Хранит id модератора -> post_id
-waiting_for_msg = {}    # Хранит id модератора -> post_id
+waiting_for_reject = {}
+waiting_for_msg = {}
 
 def register_user(message):
     user_id = str(message.from_user.id)
@@ -73,10 +73,9 @@ def register_user(message):
     save_data()
 
 def notify_mods(text):
-    """Рассылка системных уведомлений всем модераторам"""
     for m in MODS:
         try:
-            bot.send_message(m, text, parse_mode="Markdown")
+            bot.send_message(m, text)
         except:
             pass
 
@@ -92,61 +91,72 @@ def mod_kb(post_id):
     )
     return kb
 
-# 🔥 CALLBACK (Кнопки)
+# 🔥 CALLBACK (ФИКС КНОПОК)
 @bot.callback_query_handler(func=lambda call: True)
 def callback(call):
-    # ИСПРАВЛЕНИЕ: Мгновенно убираем часики на кнопке
-    bot.answer_callback_query(call.id) 
-    
-    data_cb = call.data
-    mod_name = call.from_user.username or call.from_user.first_name
+    try:
+        data_cb = call.data
+        mod_name = call.from_user.username or call.from_user.first_name
 
-    if data_cb.startswith("approve_"):
-        post_id = data_cb.split("_")[1]
-        post = pending_posts.get(post_id)
+        # 🔥 ВАЖНО: убирает вечную загрузку кнопки
+        bot.answer_callback_query(call.id)
 
-        if not post:
-            bot.send_message(call.message.chat.id, "❌ Пост уже обработан или удален.")
-            return
+        if data_cb.startswith("approve_"):
+            post_id = data_cb.split("_")[1]
+            post = pending_posts.get(post_id)
 
-        # Отправляем в канал
-        try:
+            if not post:
+                bot.send_message(call.message.chat.id, "❌ Пост уже обработан или удален.")
+                return
+
             if post["type"] == "text" or post["type"] == "photo":
                 bot.copy_message(CHANNEL_ID, post["chat_id"], post["message_id"])
             elif post["type"] == "album":
                 bot.send_media_group(CHANNEL_ID, post["media"])
 
-            # Уведомляем участника и модеров
-            bot.send_message(post["user_id"], "✅ Ваше объявление успешно опубликовано!")
-        except Exception as e:
-            bot.send_message(call.message.chat.id, f"❌ Ошибка публикации: {e}")
-            return
-        
-        notify_mods(f"✅ Модератор @{mod_name} **одобрил** объявление.")
-        bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
-        bot.send_message(call.message.chat.id, "✅ Объявление отправлено в канал.")
-        pending_posts.pop(post_id, None)
+            try:
+                bot.send_message(post["user_id"], "✅ Ваше объявление успешно опубликовано!")
+            except:
+                pass
 
-    elif data_cb.startswith("reject_"):
-        post_id = data_cb.split("_")[1]
-        if post_id not in pending_posts:
-            bot.send_message(call.message.chat.id, "❌ Пост уже обработан.")
-            return
-            
-        waiting_for_reject[call.from_user.id] = post_id
-        bot.send_message(call.message.chat.id, "✍️ Напишите причину отказа в чат (одним сообщением):")
+            notify_mods(f"✅ Модератор @{mod_name} одобрил объявление.")
+            pending_posts.pop(post_id, None)
 
-    elif data_cb.startswith("msg_"):
-        post_id = data_cb.split("_")[1]
-        if post_id not in pending_posts:
-            bot.send_message(call.message.chat.id, "❌ Пост уже обработан.")
-            return
-            
-        waiting_for_msg[call.from_user.id] = post_id
-        bot.send_message(call.message.chat.id, "✍️ Напишите сообщение участнику в чат:")
+            bot.edit_message_reply_markup(
+                call.message.chat.id,
+                call.message.message_id,
+                reply_markup=None
+            )
+
+        elif data_cb.startswith("reject_"):
+            post_id = data_cb.split("_")[1]
+            if post_id not in pending_posts:
+                bot.send_message(call.message.chat.id, "❌ Пост уже обработан.")
+                return
+
+            waiting_for_reject[call.from_user.id] = post_id
+            bot.send_message(call.message.chat.id, "✍️ Напишите причину отказа:")
+
+        elif data_cb.startswith("msg_"):
+            post_id = data_cb.split("_")[1]
+            if post_id not in pending_posts:
+                bot.send_message(call.message.chat.id, "❌ Пост уже обработан.")
+                return
+
+            waiting_for_msg[call.from_user.id] = post_id
+            bot.send_message(call.message.chat.id, "✍️ Напишите сообщение участнику:")
+
+    except Exception as e:
+        # 🔥 ГАРАНТИЯ: кнопка ВСЕГДА перестаёт крутиться
+        try:
+            bot.answer_callback_query(call.id, "Ошибка")
+        except:
+            pass
+        print("Callback error:", e)
 
 
-# 👑 КОМАНДЫ
+# 👇👇👇 ДАЛЬШЕ ТВОЙ КОД БЕЗ ИЗМЕНЕНИЙ 👇👇👇
+
 @bot.message_handler(commands=['start'])
 def start(message):
     register_user(message)
@@ -160,6 +170,7 @@ def start(message):
         "3. Контакт (username, пример: @cripta527)\n\n"
         "📩 Связь: @cripta527"
     )
+
 
 @bot.message_handler(commands=['setadmin'])
 def setadmin(message):
