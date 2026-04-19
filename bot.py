@@ -42,6 +42,8 @@ def save_data():
         data["mods"] = list(MODS)
         data["bans"] = list(bans)
         data["mutes"] = mutes
+        data["users"] = users
+        data["usernames"] = usernames
         
         with open(DATA_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=4, ensure_ascii=False)
@@ -68,6 +70,7 @@ media_groups = {}
 pending_posts = {}
 waiting_for_reject = {} 
 waiting_for_msg = {}    
+waiting_for_broadcast = set() # Для команды /all
 
 def register_user(message):
     user_id = str(message.from_user.id)
@@ -168,13 +171,20 @@ def start(message):
     register_user(message)
     bot.send_message(
         message.chat.id,
-        "Привет! 👋\n"
-        "Ты попал в Б/У рынок ASTANA.\n\n"
-        "📌 Для подачи объявления обязательно укажи:\n"
-        "1. Куплю / Продам / Набор в ТК или в семью\n"
-        "2. Цена / Бюджет\n"
-        "3. Контакт (username, пример: @cripta527)\n\n"
-        "📩 Связь: @cripta527"
+        "
+  "Привет! 👋\n"
+    "Ты попал в Б/У рынок ASTANA.\n\n"
+    "📌 Для подачи объявления обязательно укажи:\n"
+    "1. Куплю / Продам / Набор в ТК или в семью\n"
+    "2. Цена / Бюджет\n"
+    "3. Контакт (username, пример: @cripta527)\n\n"
+    "❗ Важно:\n"
+    "Без username заявка будет отклонена.\n"
+    "Если ты не указал @username — бот НЕ пропустит объявление.\n\n"
+    "🚫 Не спамить\n"
+    "Разрешена реклама семьи / СК / ТК и т.д.\n\n"
+    "📩 Связь: @cripta527"
+)
     )
 
 # 🛠 ПАНЕЛЬ УПРАВЛЕНИЯ (HELP)
@@ -197,7 +207,7 @@ def help_cmd(message):
         text += "\n👑 **Команды Создателя:**\n"
         text += "🔸 `/setadmin @user` — назначить модератора\n"
         text += "🔸 `/deladmin @user` — снять модератора\n"
-        text += "🔸 `/all текст` — рассылка всем участникам\n"
+        text += "🔸 `/all` — сделать рассылку всем (текст/фото/видео)\n"
         text += "🔸 `/stats` — статистика бота\n"
 
     bot.send_message(message.chat.id, text, parse_mode="Markdown")
@@ -280,20 +290,22 @@ def unban_user(message):
         except: pass
     else: bot.send_message(message.chat.id, "❌ Этот пользователь не в бане.")
 
+# 1. ИСПРАВЛЕННАЯ КОМАНДА /nlist (Теперь юзернеймы вместо ID)
 @bot.message_handler(commands=['nlist'])
 def nlist(message):
     if message.from_user.id not in MODS and message.from_user.id != SUPERADMIN: return
     text = "👮‍♂️ **Список модераторов:**\n\n"
     
     # Создаем обратный словарь для поиска @username по ID
-    id_to_name = {v: k for k, v in usernames.items()}
+    id_to_name = {str(v): k for k, v in usernames.items()}
     
+    # Добавляем всех из MODS
     for i, mod_id in enumerate(MODS, 1):
-        uname = id_to_name.get(mod_id)
+        uname = id_to_name.get(str(mod_id))
         if uname:
             text += f"{i}. @{uname}\n"
         else:
-            text += f"{i}. ID: `{mod_id}`\n"
+            text += f"{i}. ID: `{mod_id}` (не в базе имен)\n"
             
     bot.send_message(message.chat.id, text, parse_mode="Markdown")
 
@@ -330,22 +342,12 @@ def deladmin(message):
         except: pass
     else: bot.send_message(message.chat.id, "❌ Этот пользователь не является модератором.")
 
+# 2. ИСПРАВЛЕННАЯ КОМАНДА /all (Поддержка фото/видео и чистый текст)
 @bot.message_handler(commands=['all'])
-def broadcast(message):
+def broadcast_init(message):
     if message.from_user.id != SUPERADMIN: return
-    text = message.text.replace("/all", "").strip()
-    if not text:
-        return bot.send_message(message.chat.id, "❌ Введите текст для рассылки.\nПример: `/all Внимание, важная новость!`", parse_mode="Markdown")
-    
-    bot.send_message(message.chat.id, "⏳ Начинаю рассылку... Это может занять время.")
-    count = 0
-    for uid in users:
-        try:
-            bot.send_message(int(uid), f"📢 **Объявление от администрации:**\n\n{text}", parse_mode="Markdown")
-            count += 1
-        except: pass
-        
-    bot.send_message(message.chat.id, f"✅ **Рассылка завершена!**\nСообщение успешно получили: **{count}** чел.", parse_mode="Markdown")
+    waiting_for_broadcast.add(message.from_user.id)
+    bot.send_message(message.chat.id, "📢 **Режим рассылки активирован.**\nОтправьте сообщение (текст, фото или видео), которое хотите разослать всем участникам.", parse_mode="Markdown")
 
 @bot.message_handler(commands=['stats'])
 def stats(message):
@@ -369,9 +371,23 @@ def all_messages(message):
     uid_str = str(uid)
     mod_name = message.from_user.username or message.from_user.first_name
 
+    # Обработка рассылки /all
+    if uid == SUPERADMIN and uid in waiting_for_broadcast:
+        waiting_for_broadcast.remove(uid)
+        bot.send_message(message.chat.id, "⏳ Начинаю рассылку...")
+        count = 0
+        for target_uid in users:
+            try:
+                # copy_message отправляет контент без надписи "Переслано"
+                bot.copy_message(int(target_uid), message.chat.id, message.message_id)
+                count += 1
+            except: pass
+        bot.send_message(message.chat.id, f"✅ **Рассылка завершена!**\nСообщение успешно получили: **{count}** чел.", parse_mode="Markdown")
+        return
+
     # 1. Стейт: Ожидание причины ОТКАЗА
     if uid in waiting_for_reject:
-        post_id = waiting_for_reject[uid]
+        post_id = waiting_for_reject.pop(uid)
         reason = message.text or "Без причины"
         post = pending_posts.get(post_id)
         
@@ -381,13 +397,12 @@ def all_messages(message):
             notify_mods(f"❌ Модератор @{mod_name} **отклонил** объявление.\n📋 Причина: {reason}")
             pending_posts.pop(post_id, None)
             
-        del waiting_for_reject[uid]
         bot.send_message(message.chat.id, "✅ Отказ отправлен участнику.")
         return
 
     # 2. Стейт: Ожидание СООБЩЕНИЯ участнику
     if uid in waiting_for_msg:
-        post_id = waiting_for_msg[uid]
+        post_id = waiting_for_msg.pop(uid)
         text_to_user = message.text or "Без текста"
         post = pending_posts.get(post_id)
         
@@ -396,22 +411,19 @@ def all_messages(message):
                 bot.send_message(post["user_id"], f"💬 **Сообщение от модератора:**\n{text_to_user}", parse_mode="Markdown")
                 bot.send_message(message.chat.id, "✅ Сообщение успешно отправлено участнику.")
             except: bot.send_message(message.chat.id, "❌ Ошибка: Участник заблокировал бота.")
-        del waiting_for_msg[uid]
         return
 
-    # 3. Внутренний ЧАТ модераторов
+    # 3. ИСПРАВЛЕННЫЙ ВНУТРЕННИЙ ЧАТ (Теперь все модераторы видят сообщения друг друга)
     if uid in MODS or uid == SUPERADMIN:
         all_admins = MODS.union({SUPERADMIN})
         for m in all_admins:
             if m != uid:
                 try:
-                    if message.text:
-                        bot.send_message(m, f"💬 **Модератор @{mod_name}:**\n{message.text}", parse_mode="Markdown")
-                    else:
-                        bot.send_message(m, f"🖼 **Модератор @{mod_name} отправил файл:**", parse_mode="Markdown")
-                        bot.copy_message(m, message.chat.id, message.message_id)
+                    # Сначала отправляем заголовок, кто пишет
+                    bot.send_message(m, f"💬 **Модератор @{mod_name}:**", parse_mode="Markdown")
+                    # Копируем сообщение (чтобы работали и фото, и видео, и текст)
+                    bot.copy_message(m, message.chat.id, message.message_id)
                 except: pass
-        # Модераторы не могут подавать заявки как юзеры (все их сообщения идут в чат)
         return
 
     # --- ЛОГИКА ПОДАЧИ ОБЪЯВЛЕНИЙ ДЛЯ УЧАСТНИКОВ ---
@@ -467,7 +479,7 @@ def all_messages(message):
         bot.send_message(uid, "❌ Добавьте ваш @username в текст и отправьте заново.")
         return
 
-    bot.send_message(uid, "⏳ Объявление отправлено! Ожидайте проверки модераторами.")
+    bot.send_message(uid, "⏳ Ожидайте, все объявления проверяются модераторами, не нужно дублировать сообщение.")
 
     pending_posts[post_id] = {
         "type": "photo" if message.photo else ("video" if message.video else "text"),
@@ -483,3 +495,4 @@ def all_messages(message):
         except: pass
 
 bot.infinity_polling(skip_pending=True)
+
