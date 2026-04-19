@@ -89,13 +89,12 @@ def mod_kb(post_id):
     )
     return kb
 
-# 🔥 CALLBACK (ИСПРАВЛЕН)
+
 @bot.callback_query_handler(func=lambda call: True)
 def callback(call):
     try:
         print("CALLBACK:", call.data)
 
-        # 🔥 СРАЗУ СНИМАЕМ ЗАГРУЗКУ (ЭТО КРИТИЧНО)
         bot.answer_callback_query(call.id)
 
         data_cb = call.data
@@ -105,7 +104,6 @@ def callback(call):
             return
 
         action, post_id = data_cb.split("_", 1)
-
         post = pending_posts.get(post_id)
 
         # ---------------- APPROVE ----------------
@@ -115,14 +113,38 @@ def callback(call):
                 bot.send_message(call.message.chat.id, "❌ Пост не найден")
                 return
 
+            # обычное сообщение
             if post["type"] in ["text", "photo", "video"]:
                 bot.copy_message(CHANNEL_ID, post["chat_id"], post["message_id"])
 
+            # АЛЬБОМ (ФИКС)
             elif post["type"] == "album":
-                bot.send_media_group(CHANNEL_ID, post["media"])
+
+                media = []
+
+                for i, m in enumerate(post["messages"]):
+
+                    if m.photo:
+                        media.append(
+                            types.InputMediaPhoto(
+                                m.photo[-1].file_id,
+                                caption=(m.caption if i == 0 else "")
+                            )
+                        )
+
+                    elif m.video:
+                        media.append(
+                            types.InputMediaVideo(
+                                m.video.file_id,
+                                caption=(m.caption if i == 0 else "")
+                            )
+                        )
+
+                if media:
+                    bot.send_media_group(CHANNEL_ID, media)
 
             try:
-                bot.send_message(post["user_id"], "✅ Одобрено")
+                bot.send_message(post["user_id"], "✅ Объявление одобрено")
             except:
                 pass
 
