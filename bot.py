@@ -8,9 +8,7 @@ TOKEN = "8454142474:AAHpLFHANoCmQQpDTO7iZpDVXvbaPUqNr30"
 bot = telebot.TeleBot(TOKEN)
 
 SUPERADMIN = 7905149857
-
 DATA_FILE = "data.json"
-
 CHANNEL_ID = "@br_bu_astana"
 
 # 🔥 СТРУКТУРЫ ДАННЫХ
@@ -91,25 +89,25 @@ def mod_kb(post_id):
     )
     return kb
 
-# 🔥 CALLBACK (ФИКС КНОПОК)
+# 🔥 CALLBACK (ИСПРАВЛЕН)
 @bot.callback_query_handler(func=lambda call: True)
 def callback(call):
     try:
+        # 🔥 ВАЖНЕЙШИЙ ФИКС (убирает вечную загрузку кнопок)
+        bot.answer_callback_query(call.id)
+
         data_cb = call.data
         mod_name = call.from_user.username or call.from_user.first_name
-
-        # 🔥 ВАЖНО: убирает вечную загрузку кнопки
-        bot.answer_callback_query(call.id)
 
         if data_cb.startswith("approve_"):
             post_id = data_cb.split("_")[1]
             post = pending_posts.get(post_id)
 
             if not post:
-                bot.send_message(call.message.chat.id, "❌ Пост уже обработан или удален.")
+                bot.answer_callback_query(call.id, "❌ Пост уже обработан")
                 return
 
-            if post["type"] == "text" or post["type"] == "photo":
+            if post["type"] in ["text", "photo"]:
                 bot.copy_message(CHANNEL_ID, post["chat_id"], post["message_id"])
             elif post["type"] == "album":
                 bot.send_media_group(CHANNEL_ID, post["media"])
@@ -120,6 +118,7 @@ def callback(call):
                 pass
 
             notify_mods(f"✅ Модератор @{mod_name} одобрил объявление.")
+
             pending_posts.pop(post_id, None)
 
             bot.edit_message_reply_markup(
@@ -128,10 +127,13 @@ def callback(call):
                 reply_markup=None
             )
 
+            bot.answer_callback_query(call.id, "✅ Одобрено")
+
         elif data_cb.startswith("reject_"):
             post_id = data_cb.split("_")[1]
+
             if post_id not in pending_posts:
-                bot.send_message(call.message.chat.id, "❌ Пост уже обработан.")
+                bot.answer_callback_query(call.id, "❌ Уже обработано")
                 return
 
             waiting_for_reject[call.from_user.id] = post_id
@@ -139,21 +141,20 @@ def callback(call):
 
         elif data_cb.startswith("msg_"):
             post_id = data_cb.split("_")[1]
+
             if post_id not in pending_posts:
-                bot.send_message(call.message.chat.id, "❌ Пост уже обработан.")
+                bot.answer_callback_query(call.id, "❌ Уже обработано")
                 return
 
             waiting_for_msg[call.from_user.id] = post_id
             bot.send_message(call.message.chat.id, "✍️ Напишите сообщение участнику:")
 
     except Exception as e:
-        # 🔥 ГАРАНТИЯ: кнопка ВСЕГДА перестаёт крутиться
+        print("Callback error:", e)
         try:
-            bot.answer_callback_query(call.id, "Ошибка")
+            bot.answer_callback_query(call.id, "❌ Ошибка")
         except:
             pass
-        print("Callback error:", e)
-
 
 # 👇👇👇 ДАЛЬШЕ ТВОЙ КОД БЕЗ ИЗМЕНЕНИЙ 👇👇👇
 
