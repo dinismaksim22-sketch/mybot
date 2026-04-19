@@ -4,7 +4,12 @@ import json
 import os
 from telebot import types
 
-TOKEN = os.getenv("8454142474:AAHpLFHANoCmQQpDTO7iZpDVXvbaPUqNr30")  # или вставь напрямую
+# 🔥 ВСТАВЬ ТОКЕН ЖЁСТКО (НЕ ENV)
+TOKEN = "8454142474:AAHpLFHANoCmQQpDTO7iZpDVXvbaPUqNr30"
+
+if not TOKEN or ":" not in TOKEN:
+    raise Exception("❌ TOKEN НЕ ЗАДАН ИЛИ НЕВЕРНЫЙ")
+
 bot = telebot.TeleBot(TOKEN)
 
 SUPERADMIN = 7905149857
