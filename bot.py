@@ -79,7 +79,8 @@ def register_user(message):
     save_data()
 
 def notify_mods(text):
-    for m in MODS:
+    all_admins = MODS.union({SUPERADMIN})
+    for m in all_admins:
         try:
             bot.send_message(m, text, parse_mode="Markdown")
         except:
@@ -190,7 +191,7 @@ def help_cmd(message):
     text += "🔹 `/ban @user` — выдать бан (навсегда)\n"
     text += "🔹 `/unban @user` — снять бан\n"
     text += "🔹 `/nlist` — список модераторов\n\n"
-    text += "💬 *Напишите обычный текст (не команду), чтобы отправить его в чат модераторов.*\n"
+    text += "💬 *Напишите обычный текст, фото или видео, чтобы отправить его в чат модераторов.*\n"
 
     if uid == SUPERADMIN:
         text += "\n👑 **Команды Создателя:**\n"
@@ -283,8 +284,17 @@ def unban_user(message):
 def nlist(message):
     if message.from_user.id not in MODS and message.from_user.id != SUPERADMIN: return
     text = "👮‍♂️ **Список модераторов:**\n\n"
+    
+    # Создаем обратный словарь для поиска @username по ID
+    id_to_name = {v: k for k, v in usernames.items()}
+    
     for i, mod_id in enumerate(MODS, 1):
-        text += f"{i}. ID: `{mod_id}`\n"
+        uname = id_to_name.get(mod_id)
+        if uname:
+            text += f"{i}. @{uname}\n"
+        else:
+            text += f"{i}. ID: `{mod_id}`\n"
+            
     bot.send_message(message.chat.id, text, parse_mode="Markdown")
 
 # 👑 КОМАНДЫ ВЛАДЕЛЬЦА
@@ -295,11 +305,14 @@ def setadmin(message):
     if len(args) < 2: return bot.send_message(message.chat.id, "❌ Формат: `/setadmin @user`", parse_mode="Markdown")
     
     uid = get_user_id(args[1])
-    if not uid: return bot.send_message(message.chat.id, "❌ Пользователь не найден.")
+    if not uid: return bot.send_message(message.chat.id, "❌ Пользователь не найден. Он должен хотя бы раз запустить бота.")
     
     MODS.add(int(uid))
     save_data()
     bot.send_message(message.chat.id, f"✅ Пользователь {args[1]} назначен модератором.")
+    try: 
+        bot.send_message(int(uid), "🎉 **Поздравляем!** 🎉\nВам были выданы права **Модератора**! 👮‍♂️\n\n📌 Ознакомьтесь с доступными командами управления, написав команду: /help", parse_mode="Markdown")
+    except: pass
 
 @bot.message_handler(commands=['deladmin'])
 def deladmin(message):
@@ -312,7 +325,10 @@ def deladmin(message):
         MODS.discard(int(uid))
         save_data()
         bot.send_message(message.chat.id, f"✅ {args[1]} снят с должности модератора.")
-    else: bot.send_message(message.chat.id, "❌ Этот пользователь не модератор.")
+        try: 
+            bot.send_message(int(uid), "😔 **Внимание!**\nВы были сняты с должности модератора.", parse_mode="Markdown")
+        except: pass
+    else: bot.send_message(message.chat.id, "❌ Этот пользователь не является модератором.")
 
 @bot.message_handler(commands=['all'])
 def broadcast(message):
@@ -346,8 +362,8 @@ def stats(message):
 def unknown_command(message):
     bot.send_message(message.chat.id, "❌ Данной команды не существует или она вам недоступна.")
 
-# 📩 ОБРАБОТКА ТЕКСТА, ФОТО И АЛЬБОМОВ
-@bot.message_handler(content_types=['text', 'photo', 'video'])
+# 📩 ОБРАБОТКА ТЕКСТА, ФОТО, ВИДЕО И ДР. МЕДИА
+@bot.message_handler(content_types=['text', 'photo', 'video', 'document', 'voice', 'audio'])
 def all_messages(message):
     uid = message.from_user.id
     uid_str = str(uid)
@@ -385,12 +401,17 @@ def all_messages(message):
 
     # 3. Внутренний ЧАТ модераторов
     if uid in MODS or uid == SUPERADMIN:
-        for m in MODS:
+        all_admins = MODS.union({SUPERADMIN})
+        for m in all_admins:
             if m != uid:
-                text_to_send = f"👮‍♂️ **Модератор @{mod_name}:**\n{message.text or '[Медиафайл]'}"
-                try: bot.send_message(m, text_to_send, parse_mode="Markdown")
+                try:
+                    if message.text:
+                        bot.send_message(m, f"💬 **Модератор @{mod_name}:**\n{message.text}", parse_mode="Markdown")
+                    else:
+                        bot.send_message(m, f"🖼 **Модератор @{mod_name} отправил файл:**", parse_mode="Markdown")
+                        bot.copy_message(m, message.chat.id, message.message_id)
                 except: pass
-        # Если модератор пишет, дальше код не идет, он не может подать заявку как юзер
+        # Модераторы не могут подавать заявки как юзеры (все их сообщения идут в чат)
         return
 
     # --- ЛОГИКА ПОДАЧИ ОБЪЯВЛЕНИЙ ДЛЯ УЧАСТНИКОВ ---
@@ -432,7 +453,7 @@ def all_messages(message):
 
             pending_posts[post_id] = {"type": "album", "media": media_to_send, "user_id": uid, "chat_id": message.chat.id}
 
-            for m in MODS:
+            for m in MODS.union({SUPERADMIN}):
                 try:
                     bot.send_media_group(m, media_to_send)
                     bot.send_message(m, f"📢 **Новое объявление (Альбом)** от ID: `{uid}`\nВыберите действие:", reply_markup=mod_kb(post_id), parse_mode="Markdown")
@@ -455,7 +476,7 @@ def all_messages(message):
         "message_id": message.message_id
     }
 
-    for m in MODS:
+    for m in MODS.union({SUPERADMIN}):
         try:
             bot.copy_message(m, message.chat.id, message.message_id)
             bot.send_message(m, f"📢 **Новое объявление** от ID: `{uid}`\nВыберите действие:", reply_markup=mod_kb(post_id), parse_mode="Markdown")
