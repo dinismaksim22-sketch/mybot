@@ -59,8 +59,8 @@ mutes = {}
 # Временные хранилища
 media_groups = {}
 pending_posts = {}
-waiting_for_reject = {} # Хранит id модератора -> post_id
-waiting_for_msg = {}    # Хранит id модератора -> post_id
+waiting_for_reject = {} 
+waiting_for_msg = {}    
 
 def register_user(message):
     user_id = str(message.from_user.id)
@@ -72,7 +72,6 @@ def register_user(message):
     save_data()
 
 def notify_mods(text):
-    """Рассылка системных уведомлений всем модераторам"""
     for m in MODS:
         try:
             bot.send_message(m, text, parse_mode="Markdown")
@@ -91,69 +90,74 @@ def mod_kb(post_id):
     )
     return kb
 
-# 🔥 CALLBACK (Кнопки)
+# 🔥 CALLBACK (Кнопки модерации)
 @bot.callback_query_handler(func=lambda call: True)
 def callback(call):
-    data_cb = call.data
-    mod_name = call.from_user.username or call.from_user.first_name
+    try:
+        data_cb = call.data
+        mod_name = call.from_user.username or call.from_user.first_name
 
-    if data_cb.startswith("approve_"):
-        post_id = data_cb.split("_")[1]
-        post = pending_posts.get(post_id)
+        if data_cb.startswith("approve_"):
+            post_id = data_cb.split("_")[1]
+            post = pending_posts.get(post_id)
 
-        if not post:
-            bot.answer_callback_query(call.id, "❌ Пост уже обработан или удален.")
-            return
+            # Проверка, не перезапускался ли бот (если пост не найден)
+            if not post:
+                bot.answer_callback_query(call.id, "❌ Ошибка: Пост устарел, удален или бот был перезапущен! Создайте новую заявку.", show_alert=True)
+                return
 
-        # Сразу убираем "Загрузку" на кнопке
-        bot.answer_callback_query(call.id, "✅ Публикуем...")
+            # Сразу убираем часики "Загрузка"
+            bot.answer_callback_query(call.id, "✅ Публикуем...")
 
-        try:
-            # Отправляем в канал (ДОБАВЛЕН ТИП VIDEO)
-            if post["type"] in ["text", "photo", "video"]:
-                bot.copy_message(CHANNEL_ID, post["chat_id"], post["message_id"])
-            elif post["type"] == "album":
-                bot.send_media_group(CHANNEL_ID, post["media"])
-
-            # Уведомляем участника и модеров
             try:
-                bot.send_message(post["user_id"], "✅ Ваше объявление успешно опубликовано!")
-            except: pass
-            
-            notify_mods(f"✅ Модератор @{mod_name} **одобрил** объявление.")
-            
-            try:
-                bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
-            except: pass
-            
-            pending_posts.pop(post_id, None)
+                # Отправляем в канал (Поддерживает фото, видео и текст)
+                if post["type"] in ["text", "photo", "video"]:
+                    bot.copy_message(CHANNEL_ID, post["chat_id"], post["message_id"])
+                elif post["type"] == "album":
+                    bot.send_media_group(CHANNEL_ID, post["media"])
 
-        except Exception as e:
-            bot.send_message(call.message.chat.id, f"❌ **Ошибка при отправке в канал!**\nПроверьте, является ли бот администратором канала {CHANNEL_ID} с правами публикации сообщений.\n`{e}`", parse_mode="Markdown")
+                # Уведомляем
+                try:
+                    bot.send_message(post["user_id"], "✅ Ваше объявление успешно опубликовано!")
+                except: pass
+                
+                notify_mods(f"✅ Модератор @{mod_name} **одобрил** объявление.")
+                
+                # Убираем кнопки у сообщения
+                try:
+                    bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
+                except: pass
+                
+                # Удаляем из памяти
+                pending_posts.pop(post_id, None)
 
+            except Exception as e:
+                bot.send_message(call.message.chat.id, f"❌ **Ошибка при отправке в канал!**\nПроверь, добавлен ли бот в {CHANNEL_ID} как админ.\nКод ошибки: `{e}`", parse_mode="Markdown")
 
-    elif data_cb.startswith("reject_"):
-        post_id = data_cb.split("_")[1]
-        if post_id not in pending_posts:
-            bot.answer_callback_query(call.id, "❌ Пост уже обработан.")
-            return
-            
-        waiting_for_reject[call.from_user.id] = post_id
-        # Убираем загрузку
-        bot.answer_callback_query(call.id)
-        bot.send_message(call.message.chat.id, "✍️ Напишите причину отказа в чат (одним сообщением):")
+        elif data_cb.startswith("reject_"):
+            post_id = data_cb.split("_")[1]
+            if post_id not in pending_posts:
+                bot.answer_callback_query(call.id, "❌ Пост уже обработан или бот был перезапущен.", show_alert=True)
+                return
+                
+            waiting_for_reject[call.from_user.id] = post_id
+            bot.answer_callback_query(call.id)
+            bot.send_message(call.message.chat.id, "✍️ Напишите причину отказа в чат (одним сообщением):")
 
+        elif data_cb.startswith("msg_"):
+            post_id = data_cb.split("_")[1]
+            if post_id not in pending_posts:
+                bot.answer_callback_query(call.id, "❌ Пост уже обработан или бот был перезапущен.", show_alert=True)
+                return
+                
+            waiting_for_msg[call.from_user.id] = post_id
+            bot.answer_callback_query(call.id)
+            bot.send_message(call.message.chat.id, "✍️ Напишите сообщение участнику в чат:")
 
-    elif data_cb.startswith("msg_"):
-        post_id = data_cb.split("_")[1]
-        if post_id not in pending_posts:
-            bot.answer_callback_query(call.id, "❌ Пост уже обработан.")
-            return
-            
-        waiting_for_msg[call.from_user.id] = post_id
-        # Убираем загрузку
-        bot.answer_callback_query(call.id)
-        bot.send_message(call.message.chat.id, "✍️ Напишите сообщение участнику в чат:")
+    except Exception as e:
+        # Ловим абсолютно любые поломки, чтобы не было "Загрузки"
+        bot.answer_callback_query(call.id, "⚠️ Системная ошибка!", show_alert=True)
+        bot.send_message(call.message.chat.id, f"⚠️ Критическая ошибка кнопки: {e}")
 
 
 # 👑 КОМАНДЫ
@@ -173,162 +177,41 @@ def start(message):
 
 @bot.message_handler(commands=['setadmin'])
 def setadmin(message):
-    if message.from_user.id != SUPERADMIN:
-        bot.send_message(message.chat.id, "❌ Нет доступа")
-        return
+    if message.from_user.id != SUPERADMIN: return
     args = message.text.split()
-    if len(args) < 2:
-        bot.send_message(message.chat.id, "❗ Ошибка. Используйте: /setadmin @username")
-        return
+    if len(args) < 2: return
     username = args[1].replace("@", "").lower()
-    if username not in usernames:
-        bot.send_message(message.chat.id, "❌ Пользователь не найден (он должен запустить бота).")
-        return
+    if username not in usernames: return
     uid = usernames[username]
     MODS.add(uid)
     data["mods"] = list(MODS)
     save_data()
     bot.send_message(message.chat.id, f"✅ @{username} теперь модератор")
-    bot.send_message(uid, "🎉 Вы теперь модератор\nИспользуйте /help для списка команд.")
 
 @bot.message_handler(commands=['deladmin'])
 def deladmin(message):
-    if message.from_user.id != SUPERADMIN:
-        return
+    if message.from_user.id != SUPERADMIN: return
     args = message.text.split()
-    if len(args) < 2:
-        bot.send_message(message.chat.id, "❗ Ошибка. Используйте: /deladmin @username")
-        return
+    if len(args) < 2: return
     username = args[1].replace("@", "").lower()
     if username in usernames:
         uid = usernames[username]
         MODS.discard(uid)
         data["mods"] = list(MODS)
         save_data()
-        bot.send_message(uid, "❌ Вы сняты с должности модератора.")
         bot.send_message(message.chat.id, "✅ Успешно сняли с должности")
 
 @bot.message_handler(commands=['help'])
 def help_cmd(message):
-    if message.from_user.id not in MODS:
-        return
-    bot.send_message(
-        message.chat.id,
-        "🛠 **Панель модератора:**\n"
-        "/id @user — узнать ID\n"
-        "/mute @user время(мин) причина\n"
-        "/unmute @user — снять мут\n"
-        "/ban @user — выдать бан\n"
-        "/unban @user — снять бан\n"
-        "/nlist — список модераторов\n"
-        "/all текст — рассылка (только создатель)\n\n"
-        "💬 *Если вы напишете обычный текст (не команду), он отправится в чат модераторов.*",
-        parse_mode="Markdown"
-    )
-
-@bot.message_handler(commands=['id'])
-def get_id(message):
     if message.from_user.id not in MODS: return
-    args = message.text.split()
-    if len(args) < 2:
-        bot.send_message(message.chat.id, "❗ Используйте: /id @username")
-        return
-    username = args[1].replace("@", "").lower()
-    if username in usernames:
-        bot.send_message(message.chat.id, f"🆔 ID пользователя: `{usernames[username]}`", parse_mode="Markdown")
-    else:
-        bot.send_message(message.chat.id, "❌ Пользователь не найден.")
-
-@bot.message_handler(commands=['mute'])
-def mute_cmd(message):
-    if message.from_user.id not in MODS: return
-    args = message.text.split()
-    if len(args) < 3:
-        bot.send_message(message.chat.id, "❗ Ошибка. Используйте: /mute @username время(мин) причина")
-        return
-    username = args[1].replace("@", "").lower()
-    try:
-        minutes = int(args[2])
-    except ValueError:
-        bot.send_message(message.chat.id, "❗ Время должно быть числом (минуты).")
-        return
-    reason = " ".join(args[3:]) if len(args) > 3 else "Без причины"
-
-    if username in usernames:
-        uid = usernames[username]
-        mutes[uid] = time.time() + minutes * 60
-        bot.send_message(uid, f"⛔ Вам выдан мут на {minutes} мин.\nПричина: {reason}")
-        bot.send_message(message.chat.id, f"✅ @{username} замучен.")
-
-@bot.message_handler(commands=['ban'])
-def ban_cmd(message):
-    if message.from_user.id not in MODS: return
-    args = message.text.split()
-    if len(args) < 2:
-        bot.send_message(message.chat.id, "❗ Ошибка. Используйте: /ban @username")
-        return
-    username = args[1].replace("@", "").lower()
-    if username in usernames:
-        uid = usernames[username]
-        bans[uid] = True
-        bot.send_message(uid, "⛔ Вы забанены навсегда.")
-        bot.send_message(message.chat.id, f"✅ @{username} забанен.")
-
-@bot.message_handler(commands=['all'])
-def all_cmd(message):
-    if message.from_user.id != SUPERADMIN: return
-    text = message.text.replace("/all", "").strip()
-    if not text:
-        bot.send_message(message.chat.id, "❗ Ошибка. Напишите текст для рассылки. Пример: /all Привет!")
-        return
-    count = 0
-    for uid in users:
-        try:
-            bot.send_message(int(uid), text)
-            count += 1
-        except: pass
-    bot.send_message(message.chat.id, f"✅ Рассылка завершена. Отправлено: {count} чел.")
-
-@bot.message_handler(commands=['unmute'])
-def unmute_cmd(message):
-    if message.from_user.id not in MODS: return
-    args = message.text.split()
-    if len(args) < 2:
-        bot.send_message(message.chat.id, "❗ Ошибка. Используйте: /unmute @username")
-        return
-    username = args[1].replace("@", "").lower()
-    if username in usernames:
-        uid = usernames[username]
-        mutes.pop(uid, None)
-        bot.send_message(uid, "🔓 Ваш мут был снят.")
-        bot.send_message(message.chat.id, f"✅ Мут снят с @{username}.")
-
-@bot.message_handler(commands=['unban'])
-def unban_cmd(message):
-    if message.from_user.id not in MODS: return
-    args = message.text.split()
-    if len(args) < 2:
-        bot.send_message(message.chat.id, "❗ Ошибка. Используйте: /unban @username")
-        return
-    username = args[1].replace("@", "").lower()
-    if username in usernames:
-        uid = usernames[username]
-        bans.pop(uid, None)
-        bot.send_message(uid, "🔓 Ваш бан был снят.")
-        bot.send_message(message.chat.id, f"✅ Бан снят с @{username}.")
+    bot.send_message(message.chat.id, "Панель команд доступна", parse_mode="Markdown")
 
 @bot.message_handler(commands=['nlist'])
 def nlist(message):
     if message.from_user.id not in MODS: return
     text = "👮‍♂️ Список модераторов:\n\n"
     for i, mod_id in enumerate(MODS, 1):
-        uname = None
-        for u, uid in usernames.items():
-            if uid == mod_id:
-                uname = u
-                break
-        if uname: text += f"{i}. @{uname} | ID: {mod_id}\n"
-        else: text += f"{i}. ID: {mod_id}\n"
+        text += f"{i}. ID: {mod_id}\n"
     bot.send_message(message.chat.id, text)
 
 # 🔥 ПЕРЕХВАТ НЕИЗВЕСТНЫХ КОМАНД
@@ -349,10 +232,8 @@ def all_messages(message):
         post = pending_posts.get(post_id)
         
         if post:
-            try:
-                bot.send_message(post["user_id"], f"❌ **Ваше объявление отклонено!**\n📋 Причина: {reason}", parse_mode="Markdown")
+            try: bot.send_message(post["user_id"], f"❌ **Ваше объявление отклонено!**\n📋 Причина: {reason}", parse_mode="Markdown")
             except: pass
-            
             notify_mods(f"❌ Модератор @{mod_name} **отклонил** объявление.\n📋 Причина: {reason}")
             pending_posts.pop(post_id, None)
             
@@ -370,8 +251,7 @@ def all_messages(message):
             try:
                 bot.send_message(post["user_id"], f"💬 **Сообщение от модератора:**\n{text_to_user}", parse_mode="Markdown")
                 bot.send_message(message.chat.id, "✅ Сообщение успешно отправлено участнику.")
-            except: 
-                bot.send_message(message.chat.id, "❌ Ошибка: Участник заблокировал бота.")
+            except: bot.send_message(message.chat.id, "❌ Ошибка: Участник заблокировал бота.")
         del waiting_for_msg[uid]
         return
 
@@ -380,30 +260,26 @@ def all_messages(message):
         for m in MODS:
             if m != uid:
                 text_to_send = f"👮‍♂️ **Модератор @{mod_name}:**\n{message.text or '[Медиафайл]'}"
-                try:
-                    bot.send_message(m, text_to_send, parse_mode="Markdown")
+                try: bot.send_message(m, text_to_send, parse_mode="Markdown")
                 except: pass
         return
 
-    # --- НИЖЕ ИДЕТ ЛОГИКА ПОДАЧИ ОБЪЯВЛЕНИЙ ДЛЯ УЧАСТНИКОВ ---
+    # --- ЛОГИКА ПОДАЧИ ОБЪЯВЛЕНИЙ ДЛЯ УЧАСТНИКОВ ---
     register_user(message)
 
     if uid in bans: return
     if uid in mutes and time.time() < mutes[uid]:
-        bot.send_message(uid, "🔇 У вас мут. Вы не можете подавать объявления.")
+        bot.send_message(uid, "🔇 У вас мут.")
         return
 
     post_id = str(int(time.time() * 1000))
 
-    # 🔥 Обработка АЛЬБОМОВ (Media Group)
     if message.media_group_id:
         gid = message.media_group_id
-
         if gid not in media_groups:
             media_groups[gid] = [message]
             bot.send_message(uid, "⏳ Альбом загружается, ожидайте проверки...")
             time.sleep(2) 
-            
             msgs = media_groups.pop(gid, None)
             if not msgs: return
 
@@ -415,17 +291,10 @@ def all_messages(message):
             media_to_send = []
             for i, m in enumerate(msgs):
                 cap = m.caption if i == 0 else ""
-                if m.photo:
-                    media_to_send.append(types.InputMediaPhoto(m.photo[-1].file_id, caption=cap))
-                elif m.video:
-                    media_to_send.append(types.InputMediaVideo(m.video.file_id, caption=cap))
+                if m.photo: media_to_send.append(types.InputMediaPhoto(m.photo[-1].file_id, caption=cap))
+                elif m.video: media_to_send.append(types.InputMediaVideo(m.video.file_id, caption=cap))
 
-            pending_posts[post_id] = {
-                "type": "album",
-                "media": media_to_send,
-                "user_id": uid,
-                "chat_id": message.chat.id
-            }
+            pending_posts[post_id] = {"type": "album", "media": media_to_send, "user_id": uid, "chat_id": message.chat.id}
 
             for m in MODS:
                 try:
@@ -436,7 +305,6 @@ def all_messages(message):
             media_groups[gid].append(message)
         return
 
-    # Обработка ОДИНОЧНЫХ сообщений
     text_or_caption = message.text or message.caption or ""
     if "@" not in text_or_caption:
         bot.send_message(uid, "❌ Добавьте ваш @username в текст и отправьте заново.")
