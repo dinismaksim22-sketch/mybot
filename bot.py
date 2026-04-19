@@ -168,10 +168,6 @@ def callback(call):
 def start(message):
     register_user(message)
     
-    @bot.message_handler(commands=['start'])
-def start(message):
-    register_user(message)
-    
     bot.send_message(
         message.chat.id,
         "Привет! 👋\n"
