@@ -184,7 +184,6 @@ def start(message):
     "Разрешена реклама семьи / СК / ТК и т.д.\n\n"
     "📩 Связь: @cripta527"
 )
-    )
 
 # 🛠 ПАНЕЛЬ УПРАВЛЕНИЯ (HELP)
 @bot.message_handler(commands=['help'])
