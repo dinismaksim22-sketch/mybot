@@ -171,8 +171,7 @@ def start(message):
     register_user(message)
     bot.send_message(
         message.chat.id,
-        "
-  "Привет! 👋\n"
+        "Привет! 👋\n"
     "Ты попал в Б/У рынок ASTANA.\n\n"
     "📌 Для подачи объявления обязательно укажи:\n"
     "1. Куплю / Продам / Набор в ТК или в семью\n"
