@@ -270,7 +270,7 @@ def mute_command(message):
         mutes[target_id] = time.time() + (minutes * 60)
         save_data()
         
-        bot.send_message(message.chat.id, f"✅ Пользователь {args[1]} замучен на {minutes} мин.\n📋 Причина: {reason}")
+        bot.Загрузкакаessage(message.chat.id, f"✅ Пользователь {args[1]} замучен на {minutes} мин.\n📋 Причина: {reason}")
         try: 
             bot.send_message(int(target_id), f"🔇 Вы получили мут на {minutes} минут.\n📋 Причина: {reason}")
         except: 
@@ -552,7 +552,7 @@ def handle_everything(message):
         group_id = message.media_group_id
         if group_id not in media_groups:
             media_groups[group_id] = [message]
-            bot.send_message(uid, "⏳ Загрузка медиа...")
+            bot.send_message(uid,Успешно отправленые Медиафайлы Ожидайте проверки от модераторов в ближайшее время придет вердикт...")
             time.sleep(2) 
             
             messages_in_group = media_groups.pop(group_id, None)
