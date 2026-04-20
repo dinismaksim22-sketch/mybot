@@ -552,7 +552,7 @@ def handle_everything(message):
         group_id = message.media_group_id
         if group_id not in media_groups:
             media_groups[group_id] = [message]
-            bot.send_message(uid,Успешно отправленые Медиафайлы Ожидайте проверки от модераторов в ближайшее время придет вердикт...")
+            bot.send_message(uid,"Успешно отправленые Медиафайлы Ожидайте проверки от модераторов в ближайшее время придет вердикт...")
             time.sleep(2) 
             
             messages_in_group = media_groups.pop(group_id, None)
