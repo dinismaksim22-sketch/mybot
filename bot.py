@@ -366,37 +366,68 @@ def nlist_command(message):
 # 🔥 КОМАНДЫ ДЛЯ SUPERADMIN
 @bot.message_handler(commands=['setadmin'])
 def setadmin_command(message):
-    if message.from_user.id != SUPERADMIN: 
+    if message.from_user.id != SUPERADMIN:
         return
-        
+
     args = message.text.split()
-    if len(args) < 2: 
-        return bot.send_message(message.chat.id, "❌ Формат: `/setadmin @user`")
-    
-    uid = get_user_id(args[1])
-    if not uid: 
+    if len(args) < 2:
+        return bot.send_message(message.chat.id, "❌ Формат: `/setadmin @user`", parse_mode="Markdown")
+
+    username = args[1].replace("@", "")
+    uid = get_user_id(username)
+
+    if not uid:
         return bot.send_message(message.chat.id, "❌ Юзер не найден. Он должен запустить бота.")
-    
-    MODS.add(int(uid))
+
+    uid = int(uid)
+
+    if uid in MODS:
+        return bot.send_message(message.chat.id, "❌ Пользователь уже модератор.")
+
+    MODS.add(uid)
     save_data()
-    bot.send_message(message.chat.id, f"✅ @{args[1]} теперь модератор.")
+
+    # сообщение в чат
+    bot.send_message(message.chat.id, f"✅ @{username} теперь модератор.")
+
+    # уведомление пользователю
+    try:
+        bot.send_message(uid, "🎉 Поздравляем! Вы назначены модератором.\n\n📌 Ознакомьтесь с командами: /help")
+    except:
+        pass
+
 
 @bot.message_handler(commands=['deladmin'])
 def deladmin_command(message):
-    if message.from_user.id != SUPERADMIN: 
+    if message.from_user.id != SUPERADMIN:
         return
-        
+
     args = message.text.split()
-    if len(args) < 2: 
-        return bot.send_message(message.chat.id, "❌ Формат: `/deladmin @user`")
-    
-    uid = get_user_id(args[1])
-    if uid and int(uid) in MODS:
-        MODS.discard(int(uid))
-        save_data()
-        bot.send_message(message.chat.id, f"✅ @{args[1]} снят с должности.")
-    else: 
-        bot.send_message(message.chat.id, "❌ Не является модератором.")
+    if len(args) < 2:
+        return bot.send_message(message.chat.id, "❌ Формат: `/deladmin @user`", parse_mode="Markdown")
+
+    username = args[1].replace("@", "")
+    uid = get_user_id(username)
+
+    if not uid:
+        return bot.send_message(message.chat.id, "❌ Юзер не найден.")
+
+    uid = int(uid)
+
+    if uid not in MODS:
+        return bot.send_message(message.chat.id, "❌ Не является модератором.")
+
+    MODS.discard(uid)
+    save_data()
+
+    # сообщение в чат
+    bot.send_message(message.chat.id, f"✅ @{username} снят с должности.")
+
+    # уведомление пользователю
+    try:
+        bot.send_message(uid, "⚠️ К сожалению, вы сняты с должности модератора.")
+    except:
+        pass
 
 # 🔥 2. ИСПРАВЛЕННАЯ КОМАНДА /ALL (ФОТО/ВИДЕО/ТЕКСТ БЕЗ ПЕРЕСЫЛКИ)
 @bot.message_handler(commands=['all'])
