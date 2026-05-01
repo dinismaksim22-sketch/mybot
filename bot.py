@@ -280,7 +280,7 @@ def mute_command(message):
 
 @bot.message_handler(commands=['unmute'])
 def unmute_command(message):
-    if message.from_user.id not in MODS and message.from_user.id != SUPERADMIN: 
+    if message.from_user.id not in MODS and message.from_user.id != SforMIN: 
         return
         
     args = message.text.split()
@@ -564,5 +564,4 @@ def handle_everything(message):
                 return
 
             album_media = []
-            for index, msg_obj in enumerate(messages_in_group):
-    print(msg_obj)
+            for index, msg_obj in enumerate(messages_in_group):j
