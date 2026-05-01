@@ -4,7 +4,7 @@ import sqlite3
 from telebot import types
 
 # --- КОНФИГУРАЦИЯ ---
-TOKEN = "8454142474:AAFPX2iAa9FEIAHfLndTbR1h79NZepDJdDs"
+TOKEN = "8454142474:AAFxk7K9EfOpxWN1dttbyENGLfwIFjauMVg"
 bot = telebot.TeleBot(TOKEN)
 
 SUPERADMIN = 7905149857
