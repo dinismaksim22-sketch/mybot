@@ -536,5 +536,33 @@ def handle_everything(message):
         return  
           
     if uid_str in mutes:  
-        if time.time() < mutes[uid_str]:  
-            remaining = int((mutes[uid_
+          if time.time() < mutes[uid_str]:  
+        remaining = int((mutes[uid_str] - time.time()) / 60)  
+        bot.send_message(uid, f"🔇 Вы в муте. Осталось: {remaining} мин.")  
+        return  
+    else:  
+        del mutes[uid_str]  
+        save_data()  
+
+# Генерация ID поста  
+p_id = str(int(time.time() * 1000))  
+
+# Работа с альбомами  
+if message.media_group_id:  
+    group_id = message.media_group_id  
+    if group_id not in media_groups:  
+        media_groups[group_id] = [message]  
+        bot.send_message(uid,"Успешно отправленые Медиафайлы Ожидайте проверки от модераторов в ближайшее время придет вердикт...")  
+        time.sleep(2)   
+          
+        messages_in_group = media_groups.pop(group_id, None)  
+        if not messages_in_group: return  
+
+        main_caption = messages_in_group[0].caption or ""  
+        if "@" not in main_caption:  
+            bot.send_message(uid, "❌ Ошибка: В описании альбома должен быть ваш @username!")  
+            return  
+
+        album_media = []  
+        for index, msg_obj in enumerate(messages_in_group):  
+            cap = msg_obj
