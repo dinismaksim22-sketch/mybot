@@ -5,7 +5,7 @@ import os
 from telebot import types
 
 # --- КОНФИГУРАЦИЯ ---
-TOKEN = "8454142474:AAEzY7Az6uWC52LUUiDXXGmEbBQ-WnnBlg4"
+TOKEN = "8454142474:AAE0Jc1Gcj72MYIanozXgrF0Re0M5Vqb7K0"
 bot = telebot.TeleBot(TOKEN)
 
 SUPERADMIN = 7905149857
