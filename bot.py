@@ -565,3 +565,4 @@ def handle_everything(message):
 
             album_media = []
             for index, msg_obj in enumerate(messages_in_group):
+    print(msg_obj)
