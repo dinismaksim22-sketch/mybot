@@ -532,17 +532,17 @@ def handle_everything(message):
     # --- ЛОГИКА ДЛЯ ОБЫЧНЫХ ЮЗЕРОВ ---  
     register_user(message)  
   
-    if uid_str in bans:   
-        return  
-          
-    if uid_str in mutes:  
-          if time.time() < mutes[uid_str]:  
+if uid_str in bans:   
+    return  
+      
+if uid_str in mutes:  
+    if time.time() < mutes[uid_str]:  
         remaining = int((mutes[uid_str] - time.time()) / 60)  
         bot.send_message(uid, f"🔇 Вы в муте. Осталось: {remaining} мин.")  
         return  
     else:  
         del mutes[uid_str]  
-        save_data()  
+        save_data()
 
 # Генерация ID поста  
 p_id = str(int(time.time() * 1000))  
