@@ -275,7 +275,8 @@ def mute_command(message):
             bot.send_message(int(target_id), f"🔇 Вы получили мут на {minutes} минут.\n📋 Причина: {reason}")  
         except:   
             pass  
-    except Valuereturn  
+    except ValueError:
+    return 
         bot.send_message(message.chat.id, "❌ Ошибка: Время должно быть числом.")  
   
 @bot.message_handler(commands=['unmute'])  
