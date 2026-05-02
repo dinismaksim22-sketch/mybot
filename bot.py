@@ -503,7 +503,7 @@ def handle_everything(message):
                 bot.send_message(message.chat.id, "❌ Не удалось доставить.")  
         return  
   
-    # 5. ЧАТ МОДЕРАТОРОВ (если пишет админ - просто пересылаем другим админам)
+    # 5. ЧАТ МОДЕРАТОРОВ 
     if uid in MODS or uid == SUPERADMIN:  
         all_mods_list = MODS.union({SUPERADMIN})  
         for target_mod in all_mods_list:  
@@ -518,7 +518,6 @@ def handle_everything(message):
     # --- ЛОГИКА ПОДАЧИ ОБЪЯВЛЕНИЯ (ДЛЯ ЮЗЕРОВ) ---  
     register_user(message)  
   
-        # 📌 ПРОБЛЕМА РЕШЕНА ЗДЕСЬ: ПРОВЕРКА НАЛИЧИЯ ЮЗЕРНЕЙМА В ПРОФИЛЕ
     if not message.from_user.username:
         bot.send_message(
             uid, 
@@ -535,7 +534,6 @@ def handle_everything(message):
         if mg_id not in media_groups:  
             media_groups[mg_id] = [message]  
             
-            # Ждем 2 секунды для сбора всех медиафайлов
             time.sleep(2)  
               
             msgs = media_groups.pop(mg_id, [])  
@@ -550,13 +548,12 @@ def handle_everything(message):
                 elif m.video:  
                     album_items.append(types.InputMediaVideo(m.video.file_id))  
   
-            # ПРОВЕРКА НАЛИЧИЯ @ В ТЕКСТЕ ОБЪЯВЛЕНИЯ
             if "@" not in caption:  
                 bot.send_message(uid, "❌ Ошибка: В тексте объявления должен быть указан ваш контакт с @username!")  
                 return  
   
             if album_items:
-                album_items[0].caption = caption # Привязываем текст к первому файлу
+                album_items[0].caption = caption 
   
             p_id = str(int(time.time() * 1000))  
             pending_posts[p_id] = {  
@@ -564,13 +561,16 @@ def handle_everything(message):
                 "media": album_items, "caption": caption  
             }  
   
-            # Рассылка модераторам
+            # Отправка альбома модераторам
             for m_id in MODS.union({SUPERADMIN}):
                 try:
+                    # 1. Отправляем сам альбом
                     bot.send_media_group(m_id, album_items)
-                    bot.send_message(m_id, f"📢 Новое объявление от @{message.from_user.username} (ID: `{uid}`)", 
-                                   parse_mode="Markdown", reply_markup=mod_kb(p_id))
-                except: pass
+                    # 2. Отправляем отдельное сообщение с инфой и кнопками
+                    info_text = f"📢 Новое объявление от @{message.from_user.username}\nID: <code>{uid}</code>"
+                    bot.send_message(m_id, info_text, parse_mode="HTML", reply_markup=mod_kb(p_id))
+                except Exception as e:
+                    print(f"Ошибка отправки модератору {m_id}: {e}")
             
             bot.send_message(uid, "⏳ Ожидайте, ваше объявление отправлено на проверку модераторам. Не нужно дублировать сообщение.")  
         else:  
@@ -581,7 +581,6 @@ def handle_everything(message):
     else:  
         caption = message.caption or message.text or ""  
         
-        # ПРОВЕРКА НАЛИЧИЯ @ В ТЕКСТЕ ОБЪЯВЛЕНИЯ
         if "@" not in caption:  
             bot.send_message(uid, "❌ Ошибка: В тексте объявления должен быть указан ваш контакт с @username!")  
             return  
@@ -597,18 +596,23 @@ def handle_everything(message):
             "type": c_type, "chat_id": message.chat.id, "user_id": uid,  
             "message_id": message.message_id, "caption": caption, "file_id": f_id  
         }  
-  
-        text_for_mod = f"{caption}\n\n📢 Новое объявление от @{message.from_user.username} (ID: `{uid}`)"
         
+        # Отправка контента модераторам
         for m_id in MODS.union({SUPERADMIN}):
             try:
+                # 1. Отправляем само сообщение участника
                 if c_type == 'text':
-                    bot.send_message(m_id, text_for_mod, reply_markup=mod_kb(p_id))
+                    bot.send_message(m_id, caption)
                 elif c_type == 'photo':
-                    bot.send_photo(m_id, f_id, caption=text_for_mod, reply_markup=mod_kb(p_id))
+                    bot.send_photo(m_id, f_id, caption=caption)
                 elif c_type == 'video':
-                    bot.send_video(m_id, f_id, caption=text_for_mod, reply_markup=mod_kb(p_id))
-            except: pass
+                    bot.send_video(m_id, f_id, caption=caption)
+                
+                # 2. Отправляем отдельное сообщение с инфой и кнопками
+                info_text = f"📢 Новое объявление от @{message.from_user.username}\nID: <code>{uid}</code>"
+                bot.send_message(m_id, info_text, parse_mode="HTML", reply_markup=mod_kb(p_id))
+            except Exception as e:
+                print(f"Ошибка отправки модератору {m_id}: {e}")
             
         bot.send_message(uid, "⏳ Ожидайте, ваше объявление отправлено на проверку модераторам. Не нужно дублировать сообщение.")
 
