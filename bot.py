@@ -277,6 +277,7 @@ def mute_command(message):
             pass  
     except ValueError:
     return 
+  
         bot.send_message(message.chat.id, "❌ Ошибка: Время должно быть числом.")  
   
 @bot.message_handler(commands=['unmute'])  
