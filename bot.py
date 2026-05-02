@@ -533,75 +533,106 @@ def handle_everything(message):
     # Генерация ID поста  
     p_id = str(int(time.time() * 1000))  
   
-    # Работа с альбомами  
-    if message.media_group_id:  
-        group_id = message.media_group_id  
-        if group_id not in media_groups:  
-            media_groups[group_id] = [message]  
-            bot.send_message(uid, "Успешно отправленые Медиафайлы Ожидайте проверки от модераторов в ближайшее время придет вердикт...")  
-            time.sleep(2)   
-              
-            messages_in_group = media_groups.pop(group_id, None)  
-            if not messages_in_group: 
-                return  
+    # Работа с альбомами
+if message.media_group_id:
+    group_id = message.media_group_id
 
-            main_caption = messages_in_group[0].caption or ""  
-            if "@" not in main_caption:  
-                bot.send_message(uid, "❌ Ошибка: В описании альбома должен быть ваш @username!")  
-                return  
+    if group_id not in media_groups:
+        media_groups[group_id] = []
 
-            album_media = []  
-            for index, msg_obj in enumerate(messages_in_group):  
-                # Пример завершения обработки (добавление элементов):  
-                if msg_obj.photo:  
-                    album_media.append(types.InputMediaPhoto(msg_obj.photo[-1].file_id))  
-                elif msg_obj.video:  
-                    album_media.append(types.InputMediaVideo(msg_obj.video.file_id))  
-  
-            p_data = {  
-                "type": "album",  
-                "chat_id": message.chat.id,  
-                "user_id": uid,  
-                "media": album_media,  
-                "message_id": message.message_id,  
-                "caption": main_caption  
-            }  
-            pending_posts[p_id] = p_data  
-  
-            all_admins = MODS.union({SUPERADMIN})  
-            for mod in all_admins:  
-                try:  
-                    bot.send_media_group(mod, album_media)  
-                    bot.send_message(mod, f"📩 Новая заявка от @{message.from_user.username or 'ID ' + str(uid)} (Альбом):\n\n{main_caption}", reply_markup=mod_kb(p_id))  
-                except:  
-                    pass  
+    media_groups[group_id].append(message)
 
-    else: # Одиночные сообщения
-        caption = message.caption or message.text or ""  
-        if "@" not in caption:  
-            bot.send_message(uid, "❌ Ошибка: В описании или тексте должен быть ваш @username!")  
-            return  
+    # ждём пока Telegram докинет остальные фото
+    time.sleep(2)
 
-        content_type = message.content_type  
-        p_data = {  
-            "type": content_type,  
-            "chat_id": message.chat.id,  
-            "user_id": uid,  
-            "message_id": message.message_id  
-        }  
-        pending_posts[p_id] = p_data  
+    # если альбом уже обработан
+    if group_id not in media_groups:
+        return
 
-        all_admins = MODS.union({SUPERADMIN})  
-        for mod in all_admins:  
-            try:  
-                if content_type == 'text':  
-                    bot.send_message(mod, f"📩 Новая заявка (Текст) от @{message.from_user.username or 'ID ' + str(uid)}:\n\n{caption}", reply_markup=mod_kb(p_id))  
-                else:  
-                    bot.copy_message(mod, message.chat.id, message.message_id)  
-                    bot.send_message(mod, f"📩 Новая заявка ({content_type}) от @{message.from_user.username or 'ID ' + str(uid)}:\n\n{caption}", reply_markup=mod_kb(p_id))  
-            except:  
-                pass  
-        bot.send_message(uid, "✅ Объявление отправлено на модерацию. Ожидайте ответа.")  
+    messages_in_group = media_groups.pop(group_id)
+
+    if not messages_in_group:
+        return
+
+    main_caption = messages_in_group[0].caption or ""
+
+    # проверка username
+    if "@" not in main_caption:
+        bot.send_message(
+            uid,
+            "❌ Ошибка: В описании альбома должен быть ваш @username!"
+        )
+        return
+
+    # создаём media group
+    album_media = []
+
+    for index, msg_obj in enumerate(messages_in_group):
+
+        if msg_obj.photo:
+            file_id = msg_obj.photo[-1].file_id
+
+            if index == 0:
+                media = types.InputMediaPhoto(
+                    media=file_id,
+                    caption=main_caption
+                )
+            else:
+                media = types.InputMediaPhoto(media=file_id)
+
+            album_media.append(media)
+
+        elif msg_obj.video:
+            file_id = msg_obj.video.file_id
+
+            if index == 0:
+                media = types.InputMediaVideo(
+                    media=file_id,
+                    caption=main_caption
+                )
+            else:
+                media = types.InputMediaVideo(media=file_id)
+
+            album_media.append(media)
+
+    # создаём ID поста
+    p_id = str(int(time.time() * 1000))
+
+    pending_posts[p_id] = {
+        "type": "album",
+        "media": album_media,
+        "user_id": uid,
+        "chat_id": message.chat.id,
+        "message_id": message.message_id
+    }
+
+    # сообщение модерам
+    text_for_mods = (
+        f"📢 Новое объявление (Альбом) от ID: {uid}\n"
+        f"👤 Username: @{message.from_user.username if message.from_user.username else 'нет'}"
+    )
+
+    all_admins = MODS.union({SUPERADMIN})
+
+    for admin_id in all_admins:
+        try:
+            sent_msgs = bot.send_media_group(admin_id, album_media)
+
+            bot.send_message(
+                admin_id,
+                text_for_mods,
+                reply_markup=mod_kb(p_id)
+            )
+
+        except Exception as e:
+            print(f"Ошибка отправки альбома модеру {admin_id}: {e}")
+
+    bot.send_message(
+        uid,
+        "✅ Ваш альбом отправлен на модерацию!"
+    )
+
+    return
 
 # Запуск бота  
 if __name__ == '__main__':  
