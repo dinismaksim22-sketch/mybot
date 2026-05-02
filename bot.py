@@ -270,7 +270,7 @@ def mute_command(message):
         mutes[target_id] = time.time() + (minutes * 60)  
         save_data()  
           
-        bot.Загрузкакаessage(message.chat.id, f"✅ Пользователь {args[1]} замучен на {minutes} мин.\n📋 Причина: {reason}")  
+        bot.send_message(message.chat.id, f"✅ Пользователь {args[1]} замучен на {minutes} мин.\n📋 Причина: {reason}")  
         try:   
             bot.send_message(int(target_id), f"🔇 Вы получили мут на {minutes} минут.\n📋 Причина: {reason}")  
         except:   
@@ -344,12 +344,7 @@ def nlist_command(message):
         return  
           
     text = "👮‍♂️ **Список модераторов рынка:**\n\n"  
-      
-    # Реверсивный словарь для поиска юзернейма по ID  
-    # usernames хранит {name: id}, нам нужно {id: name}  
     id_to_name_map = {str(val): key for key, val in usernames.items()}  
-      
-    # Объединяем текущих модеров  
     current_moderators = sorted(list(MODS))  
       
     for i, mod_id in enumerate(current_moderators, 1):  
@@ -386,16 +381,12 @@ def setadmin_command(message):
   
     MODS.add(uid)  
     save_data()  
-  
-    # сообщение в чат  
     bot.send_message(message.chat.id, f"✅ @{username} теперь модератор.")  
   
-    # уведомление пользователю  
     try:  
         bot.send_message(uid, "🎉 Поздравляем! Вы назначены модератором.\n\n📌 Ознакомьтесь с командами: /help")  
     except:  
         pass  
-  
   
 @bot.message_handler(commands=['deladmin'])  
 def deladmin_command(message):  
@@ -419,11 +410,8 @@ def deladmin_command(message):
   
     MODS.discard(uid)  
     save_data()  
-  
-    # сообщение в чат  
     bot.send_message(message.chat.id, f"✅ @{username} снят с должности.")  
   
-    # уведомление пользователю  
     try:  
         bot.send_message(uid, "⚠️ К сожалению, вы сняты с должности модератора.")  
     except:  
@@ -464,6 +452,19 @@ def handle_everything(message):
     uid_str = str(uid)  
     user_identity = message.from_user.username or message.from_user.first_name  
   
+    # 1. Проверки на бан и мут, перенесенные внутрь функции  
+    if uid_str in bans:   
+        return  
+          
+    if uid_str in mutes:  
+        if time.time() < mutes[uid_str]:  
+            remaining = int((mutes[uid_str] - time.time()) / 60)  
+            bot.send_message(uid, f"🔇 Вы в муте. Осталось: {remaining} мин.")  
+            return  
+        else:  
+            del mutes[uid_str]  
+            save_data()  
+  
     # Обработка рассылки /all  
     if uid == SUPERADMIN and uid in waiting_for_broadcast:  
         waiting_for_broadcast.remove(uid)  
@@ -472,7 +473,6 @@ def handle_everything(message):
         success_count = 0  
         for target_id in users:  
             try:  
-                # Используем copy_message для "чистой" отправки  
                 bot.copy_message(int(target_id), message.chat.id, message.message_id)  
                 success_count += 1  
             except:  
@@ -518,7 +518,6 @@ def handle_everything(message):
         for target_mod in all_mods_list:  
             if target_mod != uid:  
                 try:  
-                    # ТВОЙ ФОРМАТ  
                     current_mod_tag = f"@{message.from_user.username}" if message.from_user.username else f"ID {uid}"  
                     header_msg = f"🛡 Модератор {current_mod_tag}:"  
                       
@@ -526,43 +525,84 @@ def handle_everything(message):
                     bot.copy_message(target_mod, message.chat.id, message.message_id)  
                 except:  
                     pass  
-        # Модераторы не подают объявления через этот обработчик  
         return  
   
     # --- ЛОГИКА ДЛЯ ОБЫЧНЫХ ЮЗЕРОВ ---  
     register_user(message)  
   
-if uid_str in bans:   
-    return  
-      
-if uid_str in mutes:  
-    if time.time() < mutes[uid_str]:  
-        remaining = int((mutes[uid_str] - time.time()) / 60)  
-        bot.send_message(uid, f"🔇 Вы в муте. Осталось: {remaining} мин.")  
-        return  
-    else:  
-        del mutes[uid_str]  
-        save_data()
+    # Генерация ID поста  
+    p_id = str(int(time.time() * 1000))  
+  
+    # Работа с альбомами  
+    if message.media_group_id:  
+        group_id = message.media_group_id  
+        if group_id not in media_groups:  
+            media_groups[group_id] = [message]  
+            bot.send_message(uid, "Успешно отправленые Медиафайлы Ожидайте проверки от модераторов в ближайшее время придет вердикт...")  
+            time.sleep(2)   
+              
+            messages_in_group = media_groups.pop(group_id, None)  
+            if not messages_in_group: 
+                return  
 
-# Генерация ID поста  
-p_id = str(int(time.time() * 1000))  
+            main_caption = messages_in_group[0].caption or ""  
+            if "@" not in main_caption:  
+                bot.send_message(uid, "❌ Ошибка: В описании альбома должен быть ваш @username!")  
+                return  
 
-# Работа с альбомами  
-if message.media_group_id:  
-    group_id = message.media_group_id  
-    if group_id not in media_groups:  
-        media_groups[group_id] = [message]  
-        bot.send_message(uid,"Успешно отправленые Медиафайлы Ожидайте проверки от модераторов в ближайшее время придет вердикт...")  
-        time.sleep(2)   
-          
-        messages_in_group = media_groups.pop(group_id, None)  
-        if not messages_in_group: return  
+            album_media = []  
+            for index, msg_obj in enumerate(messages_in_group):  
+                # Пример завершения обработки (добавление элементов):  
+                if msg_obj.photo:  
+                    album_media.append(types.InputMediaPhoto(msg_obj.photo[-1].file_id))  
+                elif msg_obj.video:  
+                    album_media.append(types.InputMediaVideo(msg_obj.video.file_id))  
+  
+            p_data = {  
+                "type": "album",  
+                "chat_id": message.chat.id,  
+                "user_id": uid,  
+                "media": album_media,  
+                "message_id": message.message_id,  
+                "caption": main_caption  
+            }  
+            pending_posts[p_id] = p_data  
+  
+            all_admins = MODS.union({SUPERADMIN})  
+            for mod in all_admins:  
+                try:  
+                    bot.send_media_group(mod, album_media)  
+                    bot.send_message(mod, f"📩 Новая заявка от @{message.from_user.username or 'ID ' + str(uid)} (Альбом):\n\n{main_caption}", reply_markup=mod_kb(p_id))  
+                except:  
+                    pass  
 
-        main_caption = messages_in_group[0].caption or ""  
-        if "@" not in main_caption:  
-            bot.send_message(uid, "❌ Ошибка: В описании альбома должен быть ваш @username!")  
+    else: # Одиночные сообщения
+        caption = message.caption or message.text or ""  
+        if "@" not in caption:  
+            bot.send_message(uid, "❌ Ошибка: В описании или тексте должен быть ваш @username!")  
             return  
 
-        album_media = []  
-        for index, msg_obj in enumerate(messages_in_group):  
-            cap = msg_obj
+        content_type = message.content_type  
+        p_data = {  
+            "type": content_type,  
+            "chat_id": message.chat.id,  
+            "user_id": uid,  
+            "message_id": message.message_id  
+        }  
+        pending_posts[p_id] = p_data  
+
+        all_admins = MODS.union({SUPERADMIN})  
+        for mod in all_admins:  
+            try:  
+                if content_type == 'text':  
+                    bot.send_message(mod, f"📩 Новая заявка (Текст) от @{message.from_user.username or 'ID ' + str(uid)}:\n\n{caption}", reply_markup=mod_kb(p_id))  
+                else:  
+                    bot.copy_message(mod, message.chat.id, message.message_id)  
+                    bot.send_message(mod, f"📩 Новая заявка ({content_type}) от @{message.from_user.username or 'ID ' + str(uid)}:\n\n{caption}", reply_markup=mod_kb(p_id))  
+            except:  
+                pass  
+        bot.send_message(uid, "✅ Объявление отправлено на модерацию. Ожидайте ответа.")  
+
+# Запуск бота  
+if __name__ == '__main__':  
+    bot.infinity_polling()
