@@ -128,7 +128,7 @@ def callback_handler(call):
         if mod_id not in MODS and mod_id != SUPERADMIN:  
             return bot.answer_callback_query(call.id, "У вас нет прав!", show_alert=True)  
   
-            if data_cb.startswith("approve_"):  
+     if data_cb.startswith("approve_"):  
             post_id = data_cb.split("_")[1]  
             post = pending_posts.get(post_id)  
   
