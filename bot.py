@@ -168,8 +168,7 @@ def callback_handler(call):
             except Exception as e:  
                 bot.send_message(call.message.chat.id, f"❌ Ошибка API: `{e}`")
 
-          
-  
+
 # 🔥 КОМАНДА /START  
 @bot.message_handler(commands=['start'])  
 def start_command(message):  
