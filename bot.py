@@ -215,31 +215,7 @@ def start_command(message):
 def help_command(message):  
     uid = message.from_user.id  
     if uid not in MODS and uid != SUPERADMIN:   
-        return  
-  
-    text = "🛠 **Панель модератора:**\n"  
-    text += "🔹 `/id @user` — узнать ID участника\n"  
-    text += "🔹 `/mute @user время причина` — выдать мут\n"  
-    text += "🔹 `/unmute @user` — снять мут\n"  
-    text += "🔹 `/ban @user` — бан навсегда\n"  
-    text += "🔹 `/unban @user` — разбан\n"  
-    text += "🔹 `/nlist` — список модераторов\n\n"  
-    text += "💬 *Все сообщения модераторов в этом чате видят другие модераторы.*\n"  
-  
-    if uid == SUPERADMIN:  
-        text += "\n👑 **Команды Создателя:**\n"  
-        text += "🔸 `/setadmin @user` — выдать права модера\n"  
-        text += "🔸 `/deladmin @user` — забрать права\n"  
-        text += "🔸 `/all` — рассылка (фото/видео/текст)\n"  
-        text += "🔸 `/stats` — статистика\n"  
-  
-    bot.send_message(message.chat.id, text, parse_mode="Markdown")  
-  
-# 🔥 УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ  
-@bot.message_handler(commands=['id'])  
-def get_user_id_cmd(message):  
-    if message.from_user.id not in MODS and message.from_user.id != SUPERADMIN:   
-        return  
+        return    
           
     args = message.text.split()  
     if len(args) < 2:  
