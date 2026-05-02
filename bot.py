@@ -540,9 +540,12 @@ def handle_everything(message):
             if not msgs: return  
   
             caption = ""  
+            caption_entities = None  # Сюда сохраним премиум-эмодзи и форматирование
             album_items = []  
             for m in msgs:  
-                if m.caption: caption = m.caption  
+                if m.caption: 
+                    caption = m.caption  
+                    caption_entities = m.caption_entities  # Захватываем сущности текста
                 if m.photo:  
                     album_items.append(types.InputMediaPhoto(m.photo[-1].file_id))  
                 elif m.video:  
@@ -554,6 +557,7 @@ def handle_everything(message):
   
             if album_items:
                 album_items[0].caption = caption 
+                album_items[0].caption_entities = caption_entities  # Привязываем эмодзи обратно
   
             p_id = str(int(time.time() * 1000))  
             pending_posts[p_id] = {  
@@ -564,9 +568,9 @@ def handle_everything(message):
             # Отправка альбома модераторам
             for m_id in MODS.union({SUPERADMIN}):
                 try:
-                    # 1. Отправляем сам альбом
+                    # 1. Отправляем альбом с сохраненными эмодзи
                     bot.send_media_group(m_id, album_items)
-                    # 2. Отправляем отдельное сообщение с инфой и кнопками
+                    # 2. Отправляем отдельное сообщение с инфой
                     info_text = f"📢 Новое объявление от @{message.from_user.username}\nID: <code>{uid}</code>"
                     bot.send_message(m_id, info_text, parse_mode="HTML", reply_markup=mod_kb(p_id))
                 except Exception as e:
@@ -600,13 +604,8 @@ def handle_everything(message):
         # Отправка контента модераторам
         for m_id in MODS.union({SUPERADMIN}):
             try:
-                # 1. Отправляем само сообщение участника
-                if c_type == 'text':
-                    bot.send_message(m_id, caption)
-                elif c_type == 'photo':
-                    bot.send_photo(m_id, f_id, caption=caption)
-                elif c_type == 'video':
-                    bot.send_video(m_id, f_id, caption=caption)
+                # 1. Идеально копируем сообщение (все эмодзи и шрифты сохранятся, плашки "Переслано" не будет)
+                bot.copy_message(m_id, message.chat.id, message.message_id)
                 
                 # 2. Отправляем отдельное сообщение с инфой и кнопками
                 info_text = f"📢 Новое объявление от @{message.from_user.username}\nID: <code>{uid}</code>"
@@ -619,3 +618,4 @@ def handle_everything(message):
 if __name__ == '__main__':  
     print("Бот запущен...")  
     bot.infinity_polling()
+
