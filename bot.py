@@ -531,47 +531,160 @@ def handle_everything(message):
     # --- ЛОГИКА ДЛЯ ОБЫЧНЫХ ЮЗЕРОВ ---  
     register_user(message)  
   
-  # 🌟 ЛОГИКА ОДИНОЧНЫХ СООБЩЕНИЙ (Текст, 1 фото, 1 видео)
-    else:
-        caption = message.caption or message.text or ""
-        if "@" not in caption:
-            bot.send_message(uid, "❌ Ошибка: В тексте должен быть ваш @username!")
-            return
-
-        p_id = str(int(time.time() * 1000))
-        content_type = message.content_type
+# 🔥📩 ОБРАБОТЧИК ВСЕХ СООБЩЕНИЙ (ГЛАВНАЯ ЛОГИКА)  
+@bot.message_handler(content_types=['text', 'photo', 'video', 'document', 'voice', 'audio'])  
+def handle_everything(message):  
+    uid = message.from_user.id  
+    uid_str = str(uid)  
+    user_identity = message.from_user.username or message.from_user.first_name  
+  
+    # 1. Проверки на бан и мут
+    if uid_str in bans:   
+        return  
           
-        file_id = None
-        if message.photo: 
-            file_id = message.photo[-1].file_id
-        elif message.video: 
-            file_id = message.video.file_id
-
-        pending_posts[p_id] = {
-            "type": content_type, 
-            "chat_id": message.chat.id, 
-            "user_id": uid,  
-            "message_id": message.message_id, 
-            "caption": caption, 
-            "file_id": file_id
-        }
-
-        # Текст, который будет прикреплен к одиночному посту
+    if uid_str in mutes:  
+        if time.time() < mutes[uid_str]:  
+            remaining = int((mutes[uid_str] - time.time()) / 60)  
+            bot.send_message(uid, f"🔇 Вы в муте. Осталось: {remaining} мин.")  
+            return  
+        else:  
+            del mutes[uid_str]  
+            save_data()  
+  
+    # 2. Обработка рассылки /all  
+    if uid == SUPERADMIN and uid in waiting_for_broadcast:  
+        waiting_for_broadcast.remove(uid)  
+        bot.send_message(message.chat.id, "⏳ Рассылка запущена...")  
+        success_count = 0  
+        for target_id in users:  
+            try:  
+                bot.copy_message(int(target_id), message.chat.id, message.message_id)  
+                success_count += 1  
+            except:  
+                pass  
+        bot.send_message(message.chat.id, f"✅ Рассылка завершена!\nДоставлено: **{success_count}**", parse_mode="Markdown")  
+        return  
+  
+    # 3. Обработка причины ОТКАЗА  
+    if uid in waiting_for_reject:  
+        post_id = waiting_for_reject.pop(uid)  
+        reason_text = message.text if message.text else "Причина не указана"  
+        post_data = pending_posts.get(post_id)  
+        if post_data:  
+            try:  
+                bot.send_message(post_data["user_id"], f"❌ **Ваше объявление отклонено!**\n📋 Причина: {reason_text}", parse_mode="Markdown")  
+            except:  
+                pass  
+            notify_mods(f"❌ Модератор @{user_identity} отклонил объявление.\nПричина: {reason_text}")  
+            pending_posts.pop(post_id, None)  
+        bot.send_message(message.chat.id, "✅ Статус отказа отправлен.")  
+        return  
+  
+    # 4. Обработка сообщения УЧАСТНИКУ  
+    if uid in waiting_for_msg:  
+        post_id = waiting_for_msg.pop(uid)  
+        text_for_user = message.text if message.text else "Сообщение без текста"  
+        post_data = pending_posts.get(post_id)  
+        if post_data:  
+            try:  
+                bot.send_message(post_data["user_id"], f"💬 **Сообщение от администрации:**\n{text_for_user}", parse_mode="Markdown")  
+                bot.send_message(message.chat.id, "✅ Сообщение доставлено.")  
+            except:  
+                bot.send_message(message.chat.id, "❌ Не удалось доставить.")  
+        return  
+  
+    # 5. ЧАТ МОДЕРАТОРОВ  
+    if uid in MODS or uid == SUPERADMIN:  
+        all_mods_list = MODS.union({SUPERADMIN})  
+        for target_mod in all_mods_list:  
+            if target_mod != uid:  
+                try:  
+                    current_mod_tag = f"@{message.from_user.username}" if message.from_user.username else f"ID {uid}"  
+                    bot.send_message(target_mod, f"🛡 Модератор {current_mod_tag}:")  
+                    bot.copy_message(target_mod, message.chat.id, message.message_id)  
+                except:  
+                    pass  
+        return  
+  
+    # --- ЛОГИКА ДЛЯ ОБЫЧНЫХ ЮЗЕРОВ ---  
+    register_user(message)  
+  
+    # 🌟 АЛЬБОМЫ (Несколько фото/видео)
+    if message.media_group_id:  
+        mg_id = message.media_group_id  
+        if mg_id not in media_groups:  
+            media_groups[mg_id] = [message]  
+            bot.send_message(uid, "⏳ Собираю файлы объявления...")  
+            
+            time.sleep(2) # Ждем загрузки всех файлов альбома
+              
+            msgs = media_groups.pop(mg_id, [])  
+            if not msgs: return  
+  
+            caption = ""  
+            album_items = []  
+            for m in msgs:  
+                if m.caption: caption = m.caption  
+                if m.photo:  
+                    album_items.append(types.InputMediaPhoto(m.photo[-1].file_id))  
+                elif m.video:  
+                    album_items.append(types.InputMediaVideo(m.video.file_id))  
+  
+            if "@" not in caption:  
+                bot.send_message(uid, "❌ Ошибка: Укажите ваш @username в описании к фото!")  
+                return  
+  
+            p_id = str(int(time.time() * 1000))  
+            pending_posts[p_id] = {  
+                "type": "album", "chat_id": message.chat.id, "user_id": uid,   
+                "media": album_items, "caption": caption  
+            }  
+  
+            # Отправка модерам
+            for m_id in MODS.union({SUPERADMIN}):
+                try:
+                    bot.send_media_group(m_id, album_items)
+                    bot.send_message(m_id, f"📢 Новое объявление от ID: `{uid}`", 
+                                   parse_mode="Markdown", reply_markup=mod_kb(p_id))
+                except: pass
+            bot.send_message(uid, "✅ Ваше объявление (альбом) отправлено на модерацию!")  
+        else:  
+            media_groups[mg_id].append(message)  
+        return  
+  
+    # 🌟 ОДИНОЧНЫЕ СООБЩЕНИЯ (Текст или 1 файл)
+    else:  
+        caption = message.caption or message.text or ""  
+        if "@" not in caption:  
+            bot.send_message(uid, "❌ Ошибка: В тексте должен быть ваш @username!")  
+            return  
+  
+        p_id = str(int(time.time() * 1000))  
+        c_type = message.content_type  
+          
+        f_id = None  
+        if message.photo: f_id = message.photo[-1].file_id  
+        elif message.video: f_id = message.video.file_id  
+  
+        pending_posts[p_id] = {  
+            "type": c_type, "chat_id": message.chat.id, "user_id": uid,  
+            "message_id": message.message_id, "caption": caption, "file_id": f_id  
+        }  
+  
         text_for_mod = f"{caption}\n\n📢 Новое объявление от ID: `{uid}`"
-
-        # Отправляем модераторам
-        for mod_id in MODS.union({SUPERADMIN}):
+        
+        for m_id in MODS.union({SUPERADMIN}):
             try:
-                if content_type == 'text':
-                    bot.send_message(mod_id, text_for_mod, parse_mode="Markdown", reply_markup=mod_kb(p_id))
-                elif content_type == 'photo':
-                    bot.send_photo(mod_id, file_id, caption=text_for_mod, parse_mode="Markdown", reply_markup=mod_kb(p_id))
-                elif content_type == 'video':
-                    bot.send_video(mod_id, file_id, caption=text_for_mod, parse_mode="Markdown", reply_markup=mod_kb(p_id))
-            except Exception as e:
-                print(f"Ошибка отправки одиночного файла модератору {mod_id}: {e}")
-                
-        bot.send_message(uid, "✅ Сообщение отправлено на модерацию!")
+                if c_type == 'text':
+                    bot.send_message(m_id, text_for_mod, reply_markup=mod_kb(p_id))
+                elif c_type == 'photo':
+                    bot.send_photo(m_id, f_id, caption=text_for_mod, reply_markup=mod_kb(p_id))
+                elif c_type == 'video':
+                    bot.send_video(m_id, f_id, caption=text_for_mod, reply_markup=mod_kb(p_id))
+            except: pass
+            
+        bot.send_message(uid, "✅ Объявление отправлено на модерацию!")
+
   
 if __name__ == '__main__':  
     print("Бот запущен...")  
