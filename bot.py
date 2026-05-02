@@ -188,7 +188,7 @@ def callback_handler(call):
         bot.answer_callback_query(call.id, "⚠️ Системный сбой!", show_alert=True)  
         print(f"Callback error: {e}")  
   
-# 🔥 КОМАНДА /START (ОБНОВЛЕННЫЙ ТЕКСТ)
+# 🔥 КОМАНДА /START  
 @bot.message_handler(commands=['start'])  
 def start_command(message):  
     register_user(message)  
@@ -202,7 +202,7 @@ def start_command(message):
         "3. Контакт (username, пример: @cripta527)\n\n"  
         "❗ Важно:\n"  
         "Без username заявка будет отклонена.\n"  
-        "Если ты не указал @username — бот НЕ пропустит объявление.\n\n"  
+        "Если у тебя не установлен @username в профиле Telegram — бот НЕ пропустит объявление.\n\n"  
         "🚫 Не спамить\n"  
         "Разрешена реклама семьи / СК / ТК и т.д.\n\n"  
         "📩 Связь: @cripta527"  
@@ -276,10 +276,7 @@ def mute_command(message):
         except:   
             pass  
     except ValueError:
-        bot.send_message(
-            message.chat.id,
-            "❌ Ошибка: Время должно быть числом."
-        )
+        bot.send_message(message.chat.id, "❌ Ошибка: Время должно быть числом.")
         return  
   
 @bot.message_handler(commands=['unmute'])  
@@ -453,90 +450,6 @@ def handle_everything(message):
     uid_str = str(uid)  
     user_identity = message.from_user.username or message.from_user.first_name  
   
-    # Проверки на бан и мут 
-    if uid_str in bans:   
-        return  
-          
-    if uid_str in mutes:  
-        if time.time() < mutes[uid_str]:  
-            remaining = int((mutes[uid_str] - time.time()) / 60)  
-            bot.send_message(uid, f"🔇 Вы в муте. Осталось: {remaining} мин.")  
-            return  
-        else:  
-            del mutes[uid_str]  
-            save_data()  
-  
-    # Обработка рассылки /all  
-    if uid == SUPERADMIN and uid in waiting_for_broadcast:  
-        waiting_for_broadcast.remove(uid)  
-        bot.send_message(message.chat.id, "⏳ Рассылка запущена...")  
-          
-        success_count = 0  
-        for target_id in users:  
-            try:  
-                bot.copy_message(int(target_id), message.chat.id, message.message_id)  
-                success_count += 1  
-            except:  
-                pass  
-          
-        bot.send_message(message.chat.id, f"✅ Рассылка завершена!\nДоставлено: **{success_count}**", parse_mode="Markdown")  
-        return  
-  
-    # Обработка причины ОТКАЗА  
-    if uid in waiting_for_reject:  
-        post_id = waiting_for_reject.pop(uid)  
-        reason_text = message.text if message.text else "Причина не указана"  
-        post_data = pending_posts.get(post_id)  
-          
-        if post_data:  
-            try:  
-                bot.send_message(post_data["user_id"], f"❌ **Ваше объявление отклонено!**\n📋 Причина: {reason_text}", parse_mode="Markdown")  
-            except:  
-                pass  
-            notify_mods(f"❌ Модератор @{user_identity} отклонил объявление.\nПричина: {reason_text}")  
-            pending_posts.pop(post_id, None)  
-              
-        bot.send_message(message.chat.id, "✅ Статус отказа отправлен.")  
-        return  
-  
-    # Обработка сообщения УЧАСТНИКУ  
-    if uid in waiting_for_msg:  
-        post_id = waiting_for_msg.pop(uid)  
-        text_for_user = message.text if message.text else "Сообщение без текста"  
-        post_data = pending_posts.get(post_id)  
-          
-        if post_data:  
-            try:  
-                bot.send_message(post_data["user_id"], f"💬 **Сообщение от администрации:**\n{text_for_user}", parse_mode="Markdown")  
-                bot.send_message(message.chat.id, "✅ Сообщение доставлено.")  
-            except:  
-                bot.send_message(message.chat.id, "❌ Не удалось доставить (бот в блоке).")  
-        return  
-  
-    # ЧАТ МОДЕРАТОРОВ (ВИДЯТ ВСЕ)  
-    if uid in MODS or uid == SUPERADMIN:  
-        all_mods_list = MODS.union({SUPERADMIN})  
-        for target_mod in all_mods_list:  
-            if target_mod != uid:  
-                try:  
-                    current_mod_tag = f"@{message.from_user.username}" if message.from_user.username else f"ID {uid}"  
-                    header_msg = f"🛡 Модератор {current_mod_tag}:"  
-                      
-                    bot.send_message(target_mod, header_msg)  
-                    bot.copy_message(target_mod, message.chat.id, message.message_id)  
-                except:  
-                    pass  
-        return  
-  
-    # --- ЛОГИКА ДЛЯ ОБЫЧНЫХ ЮЗЕРОВ ---  
-    register_user(message)  
-  # 🔥📩 ОБРАБОТЧИК ВСЕХ СООБЩЕНИЙ (ГЛАВНАЯ ЛОГИКА)  
-@bot.message_handler(content_types=['text', 'photo', 'video', 'document', 'voice', 'audio'])  
-def handle_everything(message):  
-    uid = message.from_user.id  
-    uid_str = str(uid)  
-    user_identity = message.from_user.username or message.from_user.first_name  
-  
     # 1. Проверки на бан и мут
     if uid_str in bans:   
         return  
@@ -591,7 +504,6 @@ def handle_everything(message):
         return  
   
     # 5. ЧАТ МОДЕРАТОРОВ (если пишет админ - просто пересылаем другим админам)
-    # Если ты хочешь ПРОВЕРИТЬ подачу объявления как админ, этот блок можно временно закомментировать
     if uid in MODS or uid == SUPERADMIN:  
         all_mods_list = MODS.union({SUPERADMIN})  
         for target_mod in all_mods_list:  
@@ -606,6 +518,17 @@ def handle_everything(message):
     # --- ЛОГИКА ПОДАЧИ ОБЪЯВЛЕНИЯ (ДЛЯ ЮЗЕРОВ) ---  
     register_user(message)  
   
+        # 📌 ПРОБЛЕМА РЕШЕНА ЗДЕСЬ: ПРОВЕРКА НАЛИЧИЯ ЮЗЕРНЕЙМА В ПРОФИЛЕ
+    if not message.from_user.username:
+        bot.send_message(
+            uid, 
+            "❌ **Ошибка:** У вас не установлен юзернейм (имя пользователя) в Telegram!\n\n"
+            "Пожалуйста, установите его в настройках вашего профиля (Настройки -> Имя пользователя), "
+            "чтобы покупатели могли с вами связаться, и отправьте объявление снова.", 
+            parse_mode="Markdown"
+        )
+        return
+
     # 🌟 АЛЬБОМЫ (Медиагруппы)
     if message.media_group_id:  
         mg_id = message.media_group_id  
@@ -627,9 +550,9 @@ def handle_everything(message):
                 elif m.video:  
                     album_items.append(types.InputMediaVideo(m.video.file_id))  
   
-            # ПРОВЕРКА USERNAME
+            # ПРОВЕРКА НАЛИЧИЯ @ В ТЕКСТЕ ОБЪЯВЛЕНИЯ
             if "@" not in caption:  
-                bot.send_message(uid, "❌ Ошибка: В объявлении должен быть ваш @username!")  
+                bot.send_message(uid, "❌ Ошибка: В тексте объявления должен быть указан ваш контакт с @username!")  
                 return  
   
             if album_items:
@@ -645,11 +568,11 @@ def handle_everything(message):
             for m_id in MODS.union({SUPERADMIN}):
                 try:
                     bot.send_media_group(m_id, album_items)
-                    bot.send_message(m_id, f"📢 Новое объявление от ID: `{uid}`", 
+                    bot.send_message(m_id, f"📢 Новое объявление от @{message.from_user.username} (ID: `{uid}`)", 
                                    parse_mode="Markdown", reply_markup=mod_kb(p_id))
                 except: pass
             
-            bot.send_message(uid, "⏳ Ожидайте, все объявления проверяются модераторами, не нужно дублировать сообщение.")  
+            bot.send_message(uid, "⏳ Ожидайте, ваше объявление отправлено на проверку модераторам. Не нужно дублировать сообщение.")  
         else:  
             media_groups[mg_id].append(message)  
         return  
@@ -658,9 +581,9 @@ def handle_everything(message):
     else:  
         caption = message.caption or message.text or ""  
         
-        # ПРОВЕРКА USERNAME
+        # ПРОВЕРКА НАЛИЧИЯ @ В ТЕКСТЕ ОБЪЯВЛЕНИЯ
         if "@" not in caption:  
-            bot.send_message(uid, "❌ Ошибка: В объявлении должен быть ваш @username!")  
+            bot.send_message(uid, "❌ Ошибка: В тексте объявления должен быть указан ваш контакт с @username!")  
             return  
   
         p_id = str(int(time.time() * 1000))  
@@ -675,7 +598,7 @@ def handle_everything(message):
             "message_id": message.message_id, "caption": caption, "file_id": f_id  
         }  
   
-        text_for_mod = f"{caption}\n\n📢 Новое объявление от ID: `{uid}`"
+        text_for_mod = f"{caption}\n\n📢 Новое объявление от @{message.from_user.username} (ID: `{uid}`)"
         
         for m_id in MODS.union({SUPERADMIN}):
             try:
@@ -687,10 +610,8 @@ def handle_everything(message):
                     bot.send_video(m_id, f_id, caption=text_for_mod, reply_markup=mod_kb(p_id))
             except: pass
             
-        bot.send_message(uid, "⏳ Ожидайте, все объявления проверяются модераторами, не нужно дублировать сообщение.")
+        bot.send_message(uid, "⏳ Ожидайте, ваше объявление отправлено на проверку модераторам. Не нужно дублировать сообщение.")
 
-
-  
 if __name__ == '__main__':  
     print("Бот запущен...")  
     bot.infinity_polling()
