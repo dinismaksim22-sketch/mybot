@@ -188,7 +188,7 @@ def callback_handler(call):
         bot.answer_callback_query(call.id, "⚠️ Системный сбой!", show_alert=True)  
         print(f"Callback error: {e}")  
   
-# 🔥 КОМАНДА /START (ОБНОВЛЕННЫЙ ТЕКСТ)  
+# 🔥 КОМАНДА /START (ОБНОВЛЕННЫЙ ТЕКСТ)
 @bot.message_handler(commands=['start'])  
 def start_command(message):  
     register_user(message)  
