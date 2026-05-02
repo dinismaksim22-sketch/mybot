@@ -116,8 +116,7 @@ def mod_kb(post_id):
         types.InlineKeyboardButton("💬 Написать участнику", callback_data=f"msg_{post_id}")  
     )  
     return kb  
-  
-# 🔥 CALLBACK ОБРАБОТЧИК  
+  # 🔥 CALLBACK ОБРАБОТЧИК  
 @bot.callback_query_handler(func=lambda call: True)  
 def callback_handler(call):  
     try:  
@@ -125,7 +124,7 @@ def callback_handler(call):
         mod_id = call.from_user.id  
         mod_name = call.from_user.username or call.from_user.first_name  
   
-        # Проверка прав (на случай если кто-то нажмет кнопку)  
+        # Проверка прав
         if mod_id not in MODS and mod_id != SUPERADMIN:  
             return bot.answer_callback_query(call.id, "У вас нет прав!", show_alert=True)  
   
@@ -140,9 +139,12 @@ def callback_handler(call):
             bot.answer_callback_query(call.id, "✅ Публикация...")  
   
             try:  
+                # Публикация в канал:
                 if post["type"] in ["text", "photo", "video"]:  
+                    # Клонируем исходное сообщение юзера в канал (эмодзи сохранятся, плашки "переслано" не будет)
                     bot.copy_message(CHANNEL_ID, post["chat_id"], post["message_id"])  
                 elif post["type"] == "album":  
+                    # Отправляем альбом (мы уже сохранили caption_entities на прошлом шаге)
                     bot.send_media_group(CHANNEL_ID, post["media"])  
   
                 # Уведомляем пользователя  
@@ -153,7 +155,7 @@ def callback_handler(call):
                   
                 notify_mods(f"✅ Модератор @{mod_name} **одобрил** объявление.")  
                   
-                # Убираем кнопки  
+                # Убираем кнопки у модератора
                 try:   
                     bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)  
                 except:   
@@ -186,7 +188,8 @@ def callback_handler(call):
   
     except Exception as e:  
         bot.answer_callback_query(call.id, "⚠️ Системный сбой!", show_alert=True)  
-        print(f"Callback error: {e}")  
+        print(f"Callback error: {e}")
+          
   
 # 🔥 КОМАНДА /START  
 @bot.message_handler(commands=['start'])  
