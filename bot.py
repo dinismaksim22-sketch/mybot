@@ -275,7 +275,7 @@ def mute_command(message):
             bot.send_message(int(target_id), f"🔇 Вы получили мут на {minutes} минут.\n📋 Причина: {reason}")  
         except:   
             pass  
-    except ValueError:  
+    except Valuereturn  
         bot.send_message(message.chat.id, "❌ Ошибка: Время должно быть числом.")  
   
 @bot.message_handler(commands=['unmute'])  
@@ -547,7 +547,6 @@ if message.media_group_id:
 
     # если альбом уже обработан
     if group_id not in media_groups:
-        return
 
     messages_in_group = media_groups.pop(group_id)
 
