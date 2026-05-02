@@ -563,76 +563,67 @@ if message.media_group_id:
         )
         return
 
-    # создаём media group
-    album_media = []
-
-    for index, msg_obj in enumerate(messages_in_group):
-
-        if msg_obj.photo:
-            file_id = msg_obj.photo[-1].file_id
-
-            if index == 0:
-                media = types.InputMediaPhoto(
-                    media=file_id,
-                    caption=main_caption
-                )
-            else:
-                media = types.InputMediaPhoto(media=file_id)
-
-            album_media.append(media)
-
-        elif msg_obj.video:
-            file_id = msg_obj.video.file_id
-
-            if index == 0:
-                media = types.InputMediaVideo(
-                    media=file_id,
-                    caption=main_caption
-                )
-            else:
-                media = types.InputMediaVideo(media=file_id)
-
-            album_media.append(media)
-
-    # создаём ID поста
-    p_id = str(int(time.time() * 1000))
-
-    pending_posts[p_id] = {
-        "type": "album",
-        "media": album_media,
-        "user_id": uid,
-        "chat_id": message.chat.id,
-        "message_id": message.message_id
-    }
-
-    # сообщение модерам
-    text_for_mods = (
-        f"📢 Новое объявление (Альбом) от ID: {uid}\n"
-        f"👤 Username: @{message.from_user.username if message.from_user.username else 'нет'}"
-    )
-
-    all_admins = MODS.union({SUPERADMIN})
-
-    for admin_id in all_admins:
-        try:
-            sent_msgs = bot.send_media_group(admin_id, album_media)
-
-            bot.send_message(
-                admin_id,
-                text_for_mods,
-                reply_markup=mod_kb(p_id)
-            )
-
-        except Exception as e:
-            print(f"Ошибка отправки альбома модеру {admin_id}: {e}")
-
-    bot.send_message(
-        uid,
-        "✅ Ваш альбом отправлен на модерацию!"
-    )
-
-    return
-
-# Запуск бота  
+   # Логика АЛЬБОМОВ (Media Group)  
+    if message.media_group_id:  
+        mg_id = message.media_group_id  
+        if mg_id not in media_groups:  
+            media_groups[mg_id] = [message]  
+            bot.send_message(uid, "⏳ Сбор файлов альбома... Ожидайте.")  
+            
+            # Ждем 2 секунды, пока Telegram дошлет все части альбома  
+            time.sleep(2)  
+              
+            msgs = media_groups.pop(mg_id, [])  
+            if not msgs: return  
+  
+            caption = ""  
+            album_items = []  
+            for m in msgs:  
+                if m.caption: caption = m.caption  
+                if m.photo:  
+                    album_items.append(types.InputMediaPhoto(m.photo[-1].file_id))  
+                elif m.video:  
+                    album_items.append(types.InputMediaVideo(m.video.file_id))  
+  
+            if "@" not in caption:  
+                bot.send_message(uid, "❌ Ошибка: Укажите ваш @username в описании!")  
+                return  
+  
+            p_id = str(int(time.time() * 1000))  
+            pending_posts[p_id] = {  
+                "type": "album", "chat_id": message.chat.id, "user_id": uid,   
+                "media": album_items, "caption": caption  
+            }  
+  
+            notify_mods_media(album_items, caption, p_id, user_tag, "Альбом")  
+            bot.send_message(uid, "✅ Альбом отправлен на модерацию!")  
+        else:  
+            media_groups[mg_id].append(message)  
+        return  
+  
+    # Логика ОДИНОЧНЫХ сообщений  
+    else:  
+        caption = message.caption or message.text or ""  
+        if "@" not in caption:  
+            bot.send_message(uid, "❌ Ошибка: В тексте должен быть ваш @username!")  
+            return  
+  
+        p_id = str(int(time.time() * 1000))  
+        content_type = message.content_type  
+          
+        file_id = None  
+        if message.photo: file_id = message.photo[-1].file_id  
+        elif message.video: file_id = message.video.file_id  
+  
+        pending_posts[p_id] = {  
+            "type": content_type, "chat_id": message.chat.id, "user_id": uid,  
+            "message_id": message.message_id, "caption": caption, "file_id": file_id  
+        }  
+  
+        # Отправляем модераторам  
+        notify_mods_media(file_id if file_id else None, caption, p_id, user_tag, content_type)  
+        bot.send_message(uid, "✅ Сообщение отправлено на модерацию!")  
+  
 if __name__ == '__main__':  
+    print("Бот запущен...")  
     bot.infinity_polling()
