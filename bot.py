@@ -1,15 +1,26 @@
-import telebot  
-import time  
-import json  
+import telebot
+import time
+import json
+import os
 import psycopg2
+
 from urllib.parse import urlparse
-from telebot import types  
-  
-# --- КОНФИГУРАЦИЯ ---  
-TOKEN = "8454142474:AAE0Jc1Gcj72MYIanozXgrF0Re0M5Vqb7K0"  
-bot = telebot.TeleBot(TOKEN)  
-  
-SUPERADMIN = 7905149857  
+from telebot import types
+
+--- КОНФИГУРАЦИЯ ---
+
+TOKEN = "8454142474:AAE0Jc1Gcj72MYIanozXgrF0Re0M5Vqb7K0"
+bot = telebot.TeleBot(TOKEN)
+
+SUPERADMIN = 7905149857
+CHANNEL_ID = "@br_bu_astana"
+
+=========================
+
+POSTGRESQL ПОДКЛЮЧЕНИЕ
+
+=========================
+
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 url = urlparse(DATABASE_URL)
@@ -23,6 +34,7 @@ port=url.port
 )
 
 cursor = conn.cursor()
+
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS bot_data (
 key TEXT PRIMARY KEY,
@@ -31,112 +43,168 @@ value JSONB
 """)
 
 conn.commit()
-CHANNEL_ID = "@br_bu_astana"  
-  
-# 🔥 СТРУКТУРЫ ДАННЫХ И ЛОГИКА ФАЙЛОВ  
-def load_data():  
-    if not os.path.exists(DATA_FILE):  
-        return {"mods": [SUPERADMIN], "users": {}, "usernames": {}, "bans": [], "mutes": {}}  
-    try:  
-        with open(DATA_FILE, "r", encoding="utf-8") as f:  
-            data = json.load(f)  
-            if not isinstance(data, dict):  
-                raise Exception("Файл поврежден")  
-            return data  
-    except Exception as e:  
-        print("Ошибка загрузки:", e)  
-        if os.path.exists("data_backup.json"):  
-            try:  
-                with open("data_backup.json", "r", encoding="utf-8") as f:  
-                    return json.load(f)  
-            except:  
-                pass  
-        return {"mods": [SUPERADMIN], "users": {}, "usernames": {}, "bans": [], "mutes": {}}  
-  
-def save_data():  
-    try:  
-        # Создаем бэкап перед сохранением  
-        if os.path.exists(DATA_FILE):  
-            with open(DATA_FILE, "r", encoding="utf-8") as f:  
-                old_data_content = f.read()  
-            with open("data_backup.json", "w", encoding="utf-8") as f:  
-                f.write(old_data_content)  
-                  
-        data["mods"] = list(MODS)  
-        data["bans"] = list(bans)  
-        data["mutes"] = mutes  
-        data["users"] = users  
-        data["usernames"] = usernames  
-          
-        with open(DATA_FILE, "w", encoding="utf-8") as f:  
-            json.dump(data, f, indent=4, ensure_ascii=False)  
-    except Exception as e:  
-        print("Ошибка сохранения данных в файл:", e)  
-  
-data = load_data()  
-  
-# Инициализация всех структур  
-if "mods" not in data:   
-    data["mods"] = [SUPERADMIN]  
-if "users" not in data:   
-    data["users"] = {}  
-if "usernames" not in data:   
-    data["usernames"] = {}  
-if "bans" not in data:   
-    data["bans"] = []  
-if "mutes" not in data:   
-    data["mutes"] = {}  
-  
-MODS = set(data["mods"])  
-users = data["users"]  
-usernames = data["usernames"]  
-bans = set(data["bans"])  
-mutes = data["mutes"]  
-  
-# Временные операционные хранилища  
-media_groups = {}  
-pending_posts = {}  
-waiting_for_reject = {}   
-waiting_for_msg = {}      
-waiting_for_broadcast = set() # Для команды /all  
-  
-def register_user(message):  
-    user_id = str(message.from_user.id)  
-    username = message.from_user.username  
-      
-    if user_id not in users:  
-        users[user_id] = {"count": 0}  
-          
-    if username:  
-        usernames[username.lower()] = int(user_id)  
-          
-    save_data()  
-  
-def notify_mods(text):  
-    all_admins = MODS.union({SUPERADMIN})  
-    for m in all_admins:  
-        try:  
-            bot.send_message(m, text, parse_mode="Markdown")  
-        except:  
-            pass  
-  
-def get_user_id(username_str):  
-    uname = username_str.replace("@", "").lower()  
-    if uname in usernames:  
-        return str(usernames.get(uname))  
-    return None  
-  
-# 🔥 КЛАВИАТУРА МОДЕРАЦИИ  
-def mod_kb(post_id):  
-    kb = types.InlineKeyboardMarkup()  
-    kb.add(  
-        types.InlineKeyboardButton("❌ Отказать", callback_data=f"reject_{post_id}"),  
-        types.InlineKeyboardButton("✅ Одобрить", callback_data=f"approve_{post_id}")  
-    )  
-    kb.add(  
-        types.InlineKeyboardButton("💬 Написать участнику", callback_data=f"msg_{post_id}")  
-    )  
-    return kb  
+
+=========================
+
+ЗАГРУЗКА ДАННЫХ
+
+=========================
+
+def load_data():
+
+cursor.execute(
+    "SELECT value FROM bot_data WHERE key = 'main'"
+)
+
+row = cursor.fetchone()
+
+if row:
+    return row[0]
+
+return {
+    "mods": [SUPERADMIN],
+    "users": {},
+    "usernames": {},
+    "bans": [],
+    "mutes": {}
+}
+
+=========================
+
+СОХРАНЕНИЕ ДАННЫХ
+
+=========================
+
+def save_data():
+
+try:
+
+    data["mods"] = list(MODS)
+    data["users"] = users
+    data["usernames"] = usernames
+    data["bans"] = list(bans)
+    data["mutes"] = mutes
+
+    cursor.execute("""
+    INSERT INTO bot_data (key, value)
+    VALUES ('main', %s)
+    ON CONFLICT (key)
+    DO UPDATE SET value = EXCLUDED.value
+    """, (json.dumps(data),))
+
+    conn.commit()
+
+except Exception as e:
+
+    print("Ошибка сохранения:", e)
+
+=========================
+
+ИНИЦИАЛИЗАЦИЯ
+
+=========================
+
+data = load_data()
+
+MODS = set(data.get("mods", [SUPERADMIN]))
+users = data.get("users", {})
+usernames = data.get("usernames", {})
+bans = set(data.get("bans", []))
+mutes = data.get("mutes", {})
+
+=========================
+
+ВРЕМЕННЫЕ ХРАНИЛИЩА
+
+=========================
+
+media_groups = {}
+pending_posts = {}
+waiting_for_reject = {}
+waiting_for_msg = {}
+waiting_for_broadcast = set()
+
+=========================
+
+РЕГИСТРАЦИЯ ЮЗЕРА
+
+=========================
+
+def register_user(message):
+
+user_id = str(message.from_user.id)
+username = message.from_user.username
+
+if user_id not in users:
+    users[user_id] = {
+        "count": 0
+    }
+
+if username:
+    usernames[username.lower()] = int(user_id)
+
+save_data()
+
+=========================
+
+УВЕДОМЛЕНИЕ МОДЕРОВ
+
+=========================
+
+def notify_mods(text):
+
+all_admins = MODS.union({SUPERADMIN})
+
+for m in all_admins:
+
+    try:
+        bot.send_message(
+            m,
+            text,
+            parse_mode="Markdown"
+        )
+
+    except:
+        pass
+
+=========================
+
+ПОЛУЧЕНИЕ USER ID
+
+=========================
+
+def get_user_id(username_str):
+
+uname = username_str.replace("@", "").lower()
+
+if uname in usernames:
+    return str(usernames.get(uname))
+
+return None
+
+=========================
+
+КНОПКИ МОДЕРАЦИИ
+
+=========================
+
+def mod_kb(post_id):
+
+kb = types.InlineKeyboardMarkup()
+
+kb.add(
+    types.InlineKeyboardButton(
+        "❌ Отказать",
+        callback_data=f"reject_{post_id}"
+    ),
+
+    types.InlineKeyboardButton(
+        "✅ Одобрить",
+        callback_data=f"approve_{post_id}"
+    )
+)
+
+return kb
   # 🔥 CALLBACK ОБРАБОТЧИК  
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
