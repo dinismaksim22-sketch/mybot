@@ -15,19 +15,19 @@ CHANNEL_ID = "@br_bu_astana"
 # =========================
 # POSTGRESQL ПОДКЛЮЧЕНИЕ
 # =========================
-DATABASE_URL = os.getenv("postgresql://postgres:eCdlxcAddrBPSSeqzSBRfhRLzlLSzXFg@postgres.railway.internal:5432/railway")
+
+DATABASE_URL = os.getenv("postgresql://postgres:eCdlxcAddrBPSSeqzSBRfhRLzlLSzXFg@turntable.proxy.rlwy.net:58202/railway")  # <-- ВОТ ТАК ПРАВИЛЬНО
 
 def get_db_connection():
     if not DATABASE_URL:
-        raise ValueError("Ошибка: Переменная окружения DATABASE_URL не задана!")
-    # psycopg2 отлично понимает URL строки напрямую
+        raise ValueError("❌ DATABASE_URL не задан в переменных окружения")
+
     return psycopg2.connect(DATABASE_URL)
 
 try:
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Создание таблицы
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS bot_data (
         key TEXT PRIMARY KEY,
@@ -35,10 +35,11 @@ try:
     )
     """)
     conn.commit()
+
     print("✅ База данных успешно подключена!")
+
 except Exception as e:
-    print(f"❌ Критическая ошибка при работе с БД: {e}")
-    # Если БД не работает, боту нет смысла запускаться дальше
+    print(f"❌ Ошибка БД: {e}")
     exit(1)
 
 # =========================
