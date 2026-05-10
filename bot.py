@@ -33,18 +33,10 @@ port=url.port
 cursor = conn.cursor()
 
 cursor.execute("""
-CREATE TABLE IF NOT EXISTS bot_data (
-key TEXT PRIMARY KEY,
-value JSONB
-)
-""")
-
-conn.commit()
+CREATE TABLE IF NOT EXISTS boconn.commit()
 
 # =========================
-
 # ЗАГРУЗКА ДАННЫХ
-
 # =========================
 
 def load_data():
@@ -58,47 +50,42 @@ def load_data():
     if row:
         return row[0]
 
-return {
-    "mods": [SUPERADMIN],
-    "users": {},
-    "usernames": {},
-    "bans": [],
-    "mutes": {}
-}
+    return {
+        "mods": [SUPERADMIN],
+        "users": {},
+        "usernames": {},
+        "bans": [],
+        "mutes": {}
+    }
 
 # =========================
-
 # СОХРАНЕНИЕ ДАННЫХ
-
 # =========================
 
 def save_data():
 
-try:
+    try:
 
-    data["mods"] = list(MODS)
-    data["users"] = users
-    data["usernames"] = usernames
-    data["bans"] = list(bans)
-    data["mutes"] = mutes
+        data["mods"] = list(MODS)
+        data["users"] = users
+        data["usernames"] = usernames
+        data["bans"] = list(bans)
+        data["mutes"] = mutes
 
-    cursor.execute("""
-    INSERT INTO bot_data (key, value)
-    VALUES ('main', %s)
-    ON CONFLICT (key)
-    DO UPDATE SET value = EXCLUDED.value
-    """, (json.dumps(data),))
+        cursor.execute("""
+        INSERT INTO bot_data (key, value)
+        VALUES ('main', %s)
+        ON CONFLICT (key)
+        DO UPDATE SET value = EXCLUDED.value
+        """, (json.dumps(data),))
 
-    conn.commit()
+        conn.commit()
 
-except Exception as e:
-
-    print("Ошибка сохранения:", e)
+    except Exception as e:
+        print("Ошибка сохранения:", e)
 
 # =========================
-
 # ИНИЦИАЛИЗАЦИЯ
-
 # =========================
 
 data = load_data()
@@ -110,16 +97,18 @@ bans = set(data.get("bans", []))
 mutes = data.get("mutes", {})
 
 # =========================
-
 # ВРЕМЕННЫЕ ХРАНИЛИЩА
-
 # =========================
 
 media_groups = {}
 pending_posts = {}
 waiting_for_reject = {}
 waiting_for_msg = {}
-waiting_for_broadcast = set()
+waiting_for_broadcast = set()t_data (
+key TEXT PRIMARY KEY,
+value JSONB
+)
+"""))
 
 # =========================
 
