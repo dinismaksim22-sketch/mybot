@@ -3,7 +3,6 @@ import time
 import json
 import os
 import psycopg2
-from urllib.parse import urlparse
 from telebot import types
 
 # --- КОНФИГУРАЦИЯ ---
@@ -19,36 +18,42 @@ CHANNEL_ID = "@br_bu_astana"
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 def get_db_connection():
-    url = urlparse(DATABASE_URL)
-    return psycopg2.connect(
-        dbname=url.path[1:],
-        user=url.username,
-        password=url.password,
-        host=url.hostname,
-        port=url.port
+    if not DATABASE_URL:
+        raise ValueError("Ошибка: Переменная окружения DATABASE_URL не задана!")
+    # psycopg2 отлично понимает URL строки напрямую
+    return psycopg2.connect(DATABASE_URL)
+
+try:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Создание таблицы
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS bot_data (
+        key TEXT PRIMARY KEY,
+        value JSONB
     )
-
-conn = get_db_connection()
-cursor = conn.cursor()
-
-# Исправлено: корректное создание таблицы
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS bot_data (
-    key TEXT PRIMARY KEY,
-    value JSONB
-)
-""")
-conn.commit()
+    """)
+    conn.commit()
+    print("✅ База данных успешно подключена!")
+except Exception as e:
+    print(f"❌ Критическая ошибка при работе с БД: {e}")
+    # Если БД не работает, боту нет смысла запускаться дальше
+    exit(1)
 
 # =========================
 # ЗАГРУЗКА И СОХРАНЕНИЕ
 # =========================
 
 def load_data():
-    cursor.execute("SELECT value FROM bot_data WHERE key = 'main'")
-    row = cursor.fetchone()
-    if row:
-        return row[0]
+    try:
+        cursor.execute("SELECT value FROM bot_data WHERE key = 'main'")
+        row = cursor.fetchone()
+        if row:
+            return row[0]
+    except Exception as e:
+        print(f"Ошибка загрузки данных: {e}")
+        
     return {
         "mods": [SUPERADMIN],
         "users": {},
@@ -82,7 +87,9 @@ def save_data():
         """, (json.dumps(current_data),))
         conn.commit()
     except Exception as e:
-        print(f" Ошибка сохранения: {e}")
+        print(f"❌ Ошибка сохранения: {e}")
+        # Если транзакция прервалась, нужно сделать rollback, чтобы следующие запросы не ломались
+        conn.rollback()
 
 # =========================
 # ВРЕМЕННЫЕ ХРАНИЛИЩА
@@ -269,7 +276,7 @@ def handle_docs(message):
     register_user(message)
     
     if not message.from_user.username:
-        return bot.send_message(uid, "❌ Установите @username в настройках!")
+        return bot.send_message(uid, "❌ Установите @username в настройках Телеграм!")
 
     # Обработка альбомов
     if message.media_group_id:
@@ -294,8 +301,10 @@ def handle_docs(message):
             pending_posts[pid] = {"type": "album", "media": album, "user_id": uid, "chat_id": message.chat.id}
             
             for m_id in MODS.union({SUPERADMIN}):
-                bot.send_media_group(m_id, album)
-                bot.send_message(m_id, f"📢 Новый альбом от @{message.from_user.username}", reply_markup=mod_kb(pid))
+                try:
+                    bot.send_media_group(m_id, album)
+                    bot.send_message(m_id, f"📢 Новый альбом от @{message.from_user.username}", reply_markup=mod_kb(pid))
+                except: pass
             bot.send_message(uid, "⏳ Отправлено на модерацию")
         else:
             media_groups[mid].append(message)
@@ -316,12 +325,14 @@ def handle_docs(message):
         }
 
         for m_id in MODS.union({SUPERADMIN}):
-            bot.copy_message(m_id, message.chat.id, message.message_id)
-            bot.send_message(m_id, f"📢 Новое от @{message.from_user.username}", reply_markup=mod_kb(pid))
+            try:
+                bot.copy_message(m_id, message.chat.id, message.message_id)
+                bot.send_message(m_id, f"📢 Новое от @{message.from_user.username}", reply_markup=mod_kb(pid))
+            except: pass
         
         bot.send_message(uid, "⏳ Отправлено на модерацию")
 
 if __name__ == '__main__':
-    print("Бот запущен...")
+    print("🚀 Бот запущен...")
     bot.infinity_polling()
-                
+            
