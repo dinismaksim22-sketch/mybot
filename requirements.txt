@@ -1,2 +1,2 @@
+pyTelegramBotAPI
 psycopg2-binary
-TOKEN = "8454142474:AAE0Jc1Gcj72MYIanozXgrF0Re0M5Vqb7K0"
