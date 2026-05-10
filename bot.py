@@ -10,7 +10,27 @@ TOKEN = "8454142474:AAE0Jc1Gcj72MYIanozXgrF0Re0M5Vqb7K0"
 bot = telebot.TeleBot(TOKEN)  
   
 SUPERADMIN = 7905149857  
-DATA_FILE = "data.json"  
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+url = urlparse(DATABASE_URL)
+
+conn = psycopg2.connect(
+dbname=url.path[1:],
+user=url.username,
+password=url.password,
+host=url.hostname,
+port=url.port
+)
+
+cursor = conn.cursor()
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS bot_data (
+key TEXT PRIMARY KEY,
+value JSONB
+)
+""")
+
+conn.commit()
 CHANNEL_ID = "@br_bu_astana"  
   
 # 🔥 СТРУКТУРЫ ДАННЫХ И ЛОГИКА ФАЙЛОВ  
