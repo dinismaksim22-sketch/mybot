@@ -7,7 +7,7 @@ import psycopg2
 from urllib.parse import urlparse
 from telebot import types
 
---- КОНФИГУРАЦИЯ ---
+# --- КОНФИГУРАЦИЯ ---
 
 TOKEN = "8454142474:AAHuZdNC3N4nVKMXiCCQYNHg1hI9z9njxfI"
 bot = telebot.TeleBot(TOKEN)
@@ -15,11 +15,9 @@ bot = telebot.TeleBot(TOKEN)
 SUPERADMIN = 7905149857
 CHANNEL_ID = "@br_bu_astana"
 
-=========================
-
-POSTGRESQL ПОДКЛЮЧЕНИЕ
-
-=========================
+# =========================
+# POSTGRESQL ПОДКЛЮЧЕНИЕ
+# =========================
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 url = urlparse(DATABASE_URL)
