@@ -1,7 +1,8 @@
 import telebot  
 import time  
 import json  
-import os  
+import psycopg2
+from urllib.parse import urlparse
 from telebot import types  
   
 # --- КОНФИГУРАЦИЯ ---  
