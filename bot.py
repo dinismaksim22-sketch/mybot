@@ -49,14 +49,14 @@ conn.commit()
 
 def load_data():
 
-cursor.execute(
-    "SELECT value FROM bot_data WHERE key = 'main'"
-)
+    cursor.execute(
+        "SELECT value FROM bot_data WHERE key = 'main'"
+    )
 
-row = cursor.fetchone()
+    row = cursor.fetchone()
 
-if row:
-    return row[0]
+    if row:
+        return row[0]
 
 return {
     "mods": [SUPERADMIN],
