@@ -173,37 +173,202 @@ for m in all_admins:
 =========================
 
 def get_user_id(username_str):
+import telebot
+import time
+import json
+import os
+import psycopg2
 
-uname = username_str.replace("@", "").lower()
+from urllib.parse import urlparse
+from telebot import types
 
-if uname in usernames:
-    return str(usernames.get(uname))
+# --- КОНФИГУРАЦИЯ ---
 
-return None
+TOKEN = "ТВОЙ_ТОКЕН"
+bot = telebot.TeleBot(TOKEN)
 
-=========================
+SUPERADMIN = 7905149857
+CHANNEL_ID = "@br_bu_astana"
 
-КНОПКИ МОДЕРАЦИИ
+# =========================
+# POSTGRESQL ПОДКЛЮЧЕНИЕ
+# =========================
 
-=========================
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+url = urlparse(DATABASE_URL)
+
+conn = psycopg2.connect(
+    dbname=url.path[1:],
+    user=url.username,
+    password=url.password,
+    host=url.hostname,
+    port=url.port
+)
+
+cursor = conn.cursor()
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS bot_data (
+    key TEXT PRIMARY KEY,
+    value JSONB
+)
+""")
+
+conn.commit()
+
+# =========================
+# ЗАГРУЗКА ДАННЫХ
+# =========================
+
+def load_data():
+
+    cursor.execute(
+        "SELECT value FROM bot_data WHERE key = 'main'"
+    )
+
+    row = cursor.fetchone()
+
+    if row:
+        return row[0]
+
+    return {
+        "mods": [SUPERADMIN],
+        "users": {},
+        "usernames": {},
+        "bans": [],
+        "mutes": {}
+    }
+
+# =========================
+# СОХРАНЕНИЕ ДАННЫХ
+# =========================
+
+def save_data():
+
+    try:
+
+        data["mods"] = list(MODS)
+        data["users"] = users
+        data["usernames"] = usernames
+        data["bans"] = list(bans)
+        data["mutes"] = mutes
+
+        cursor.execute("""
+        INSERT INTO bot_data (key, value)
+        VALUES ('main', %s)
+        ON CONFLICT (key)
+        DO UPDATE SET value = EXCLUDED.value
+        """, (json.dumps(data),))
+
+        conn.commit()
+
+    except Exception as e:
+
+        print("Ошибка сохранения:", e)
+
+# =========================
+# ИНИЦИАЛИЗАЦИЯ
+# =========================
+
+data = load_data()
+
+MODS = set(data.get("mods", [SUPERADMIN]))
+users = data.get("users", {})
+usernames = data.get("usernames", {})
+bans = set(data.get("bans", []))
+mutes = data.get("mutes", {})
+
+# =========================
+# ВРЕМЕННЫЕ ХРАНИЛИЩА
+# =========================
+
+media_groups = {}
+pending_posts = {}
+waiting_for_reject = {}
+waiting_for_msg = {}
+waiting_for_broadcast = set()
+
+# =========================
+# РЕГИСТРАЦИЯ ЮЗЕРА
+# =========================
+
+def register_user(message):
+
+    user_id = str(message.from_user.id)
+    username = message.from_user.username
+
+    if user_id not in users:
+        users[user_id] = {
+            "count": 0
+        }
+
+    if username:
+        usernames[username.lower()] = int(user_id)
+
+    save_data()
+
+# =========================
+# УВЕДОМЛЕНИЕ МОДЕРОВ
+# =========================
+
+def notify_mods(text):
+
+    all_admins = MODS.union({SUPERADMIN})
+
+    for m in all_admins:
+
+        try:
+            bot.send_message(
+                m,
+                text,
+                parse_mode="Markdown"
+            )
+
+        except:
+            pass
+
+# =========================
+# ПОЛУЧЕНИЕ USER ID
+# =========================
+
+def get_user_id(username_str):
+
+    uname = username_str.replace("@", "").lower()
+
+    if uname in usernames:
+        return str(usernames.get(uname))
+
+    return None
+
+# =========================
+# КНОПКИ МОДЕРАЦИИ
+# =========================
 
 def mod_kb(post_id):
 
-kb = types.InlineKeyboardMarkup()
+    kb = types.InlineKeyboardMarkup()
 
-kb.add(
-    types.InlineKeyboardButton(
-        "❌ Отказать",
-        callback_data=f"reject_{post_id}"
-    ),
+    kb.add(
+        types.InlineKeyboardButton(
+            "❌ Отказать",
+            callback_data=f"reject_{post_id}"
+        ),
 
-    types.InlineKeyboardButton(
-        "✅ Одобрить",
-        callback_data=f"approve_{post_id}"
+        types.InlineKeyboardButton(
+            "✅ Одобрить",
+            callback_data=f"approve_{post_id}"
+        )
     )
-)
 
-return kb
+    kb.add(
+        types.InlineKeyboardButton(
+            "💬 Написать участнику",
+            callback_data=f"msg_{post_id}"
+        )
+    )
+
+    return kb
   # 🔥 CALLBACK ОБРАБОТЧИК  
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
