@@ -15,7 +15,7 @@ CHANNEL_ID = "@br_bu_astana"
 # =========================
 # POSTGRESQL ПОДКЛЮЧЕНИЕ
 # =========================
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv("postgresql://postgres:eCdlxcAddrBPSSeqzSBRfhRLzlLSzXFg@turntable.proxy.rlwy.net:58202/railway")
 
 def get_db_connection():
     if not DATABASE_URL:
