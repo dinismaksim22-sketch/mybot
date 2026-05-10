@@ -20,7 +20,6 @@ CHANNEL_ID = "@br_bu_astana"
 POSTGRESQL ПОДКЛЮЧЕНИЕ
 
 =========================
-
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 url = urlparse(DATABASE_URL)
