@@ -104,69 +104,51 @@ media_groups = {}
 pending_posts = {}
 waiting_for_reject = {}
 waiting_for_msg = {}
-waiting_for_broadcast = set()t_data (
-key TEXT PRIMARY KEY,
-value JSONB
-)
-"""))
+waiting_for_broadcast = set()
 
 # =========================
-
 # РЕГИСТРАЦИЯ ЮЗЕРА
-
 # =========================
 
 def register_user(message):
 
-user_id = str(message.from_user.id)
-username = message.from_user.username
+    user_id = str(message.from_user.id)
+    username = message.from_user.username
 
-if user_id not in users:
-    users[user_id] = {
-        "count": 0
-    }
+    if user_id not in users:
+        users[user_id] = {"count": 0}
 
-if username:
-    usernames[username.lower()] = int(user_id)
+    if username:
+        usernames[username.lower()] = int(user_id)
 
-save_data()
+    save_data()
 
 # =========================
-
 # УВЕДОМЛЕНИЕ МОДЕРОВ
-
 # =========================
 
 def notify_mods(text):
 
-all_admins = MODS.union({SUPERADMIN})
+    all_admins = MODS.union({SUPERADMIN})
 
-for m in all_admins:
-
-    try:
-        bot.send_message(
-            m,
-            text,
-            parse_mode="Markdown"
-        )
-
-    except:
-        pass
+    for m in all_admins:
+        try:
+            bot.send_message(m, text, parse_mode="Markdown")
+        except:
+            pass
 
 # =========================
-
 # ПОЛУЧЕНИЕ USER ID
-
 # =========================
 
 def get_user_id(username_str):
-import telebot
-import time
-import json
-import os
-import psycopg2
 
-from urllib.parse import urlparse
+    uname = username_str.replace("@", "").lower()
+
+    if uname in usernames:
+        return str(usernames.get(uname))
+
+    return None
 from telebot import types
 
 # --- КОНФИГУРАЦИЯ ---
