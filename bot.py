@@ -11,22 +11,19 @@ bot = telebot.TeleBot(TOKEN)
 
 SUPERADMIN = 7905149857
 DATA_FILE = "data.json"
-BACKUP_FILE = "data_backup.json"
 CHANNEL_ID = "@br_bu_astana"
 
 # 🔥 СТРУКТУРЫ ДАННЫХ И ЛОГИКА ФАЙЛОВ
 
 def load_data():
-    default_data = {
-        "mods": [SUPERADMIN],
-        "users": {},
-        "usernames": {},
-        "bans": [],
-        "mutes": {}
-    }
-
     if not os.path.exists(DATA_FILE):
-        return default_data
+        return {
+            "mods": [SUPERADMIN],
+            "users": {},
+            "usernames": {},
+            "bans": [],
+            "mutes": {}
+        }
 
     try:
         with open(DATA_FILE, "r", encoding="utf-8") as f:
@@ -40,50 +37,65 @@ def load_data():
     except Exception as e:
         print("Ошибка загрузки:", e)
 
-        if os.path.exists(BACKUP_FILE):
+        if os.path.exists("data_backup.json"):
             try:
-                with open(BACKUP_FILE, "r", encoding="utf-8") as f:
+                with open("data_backup.json", "r", encoding="utf-8") as f:
                     return json.load(f)
-            except Exception:
+            except:
                 pass
 
-        return default_data
+        return {
+            "mods": [SUPERADMIN],
+            "users": {},
+            "usernames": {},
+            "bans": [],
+            "mutes": {}
+        }
 
 
 def save_data():
     global data
 
     try:
-        # Создаем бэкап
+        # Создаем бэкап перед сохранением
         if os.path.exists(DATA_FILE):
             with open(DATA_FILE, "r", encoding="utf-8") as f:
-                old_data = f.read()
+                old_data_content = f.read()
 
-            with open(BACKUP_FILE, "w", encoding="utf-8") as f:
-                f.write(old_data)
+            with open("data_backup.json", "w", encoding="utf-8") as f:
+                f.write(old_data_content)
 
         data["mods"] = list(MODS)
-        data["users"] = users
-        data["usernames"] = usernames
         data["bans"] = list(bans)
         data["mutes"] = mutes
+        data["users"] = users
+        data["usernames"] = usernames
 
         with open(DATA_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=4, ensure_ascii=False)
 
     except Exception as e:
-        print("Ошибка сохранения данных:", e)
+        print("Ошибка сохранения данных в файл:", e)
 
 
 data = load_data()
 
-# 🔥 ИНИЦИАЛИЗАЦИЯ СТРУКТУР
+# Инициализация всех структур
 
-data.setdefault("mods", [SUPERADMIN])
-data.setdefault("users", {})
-data.setdefault("usernames", {})
-data.setdefault("bans", [])
-data.setdefault("mutes", {})
+if "mods" not in data:
+    data["mods"] = [SUPERADMIN]
+
+if "users" not in data:
+    data["users"] = {}
+
+if "usernames" not in data:
+    data["usernames"] = {}
+
+if "bans" not in data:
+    data["bans"] = []
+
+if "mutes" not in data:
+    data["mutes"] = {}
 
 MODS = set(data["mods"])
 users = data["users"]
@@ -91,13 +103,13 @@ usernames = data["usernames"]
 bans = set(data["bans"])
 mutes = data["mutes"]
 
-# 🔥 ВРЕМЕННЫЕ ХРАНИЛИЩА
+# Временные операционные хранилища
 
 media_groups = {}
 pending_posts = {}
 waiting_for_reject = {}
 waiting_for_msg = {}
-waiting_for_broadcast = set()
+waiting_for_broadcast = set()  # Для команды /all
 
 
 def register_user(message):
@@ -106,8 +118,6 @@ def register_user(message):
 
     if user_id not in users:
         users[user_id] = {"count": 0}
-
-    users[user_id]["count"] += 1
 
     if username:
         usernames[username.lower()] = int(user_id)
@@ -121,7 +131,7 @@ def notify_mods(text):
     for m in all_admins:
         try:
             bot.send_message(m, text, parse_mode="Markdown")
-        except Exception:
+        except:
             pass
 
 
@@ -129,7 +139,7 @@ def get_user_id(username_str):
     uname = username_str.replace("@", "").lower()
 
     if uname in usernames:
-        return str(usernames[uname])
+        return str(usernames.get(uname))
 
     return None
 
@@ -181,17 +191,22 @@ def callback_inline(call):
             if not post:
                 bot.answer_callback_query(
                     call.id,
-                    "❌ Пост не найден!",
+                    "❌ Ошибка: Пост не найден в очереди!",
                     show_alert=True
                 )
                 return
 
-            bot.answer_callback_query(call.id, "✅ Публикация...")
+            bot.answer_callback_query(
+                call.id,
+                "✅ Публикация..."
+            )
 
             try:
 
+                # Публикация в канал
                 if post["type"] in ["text", "photo", "video"]:
 
+                    # Копируем сообщение пользователя
                     bot.copy_message(
                         chat_id=CHANNEL_ID,
                         from_chat_id=post["chat_id"],
@@ -200,42 +215,54 @@ def callback_inline(call):
 
                 elif post["type"] == "album":
 
+                    # Отправляем альбом
                     bot.send_media_group(
                         chat_id=CHANNEL_ID,
                         media=post["media"]
                     )
 
+                # Сообщение пользователю
                 try:
                     bot.send_message(
                         post["user_id"],
-                        "✅ Ваше объявление опубликовано!"
+                        "✅ Ваше объявление успешно опубликовано!"
                     )
+
                 except Exception:
                     pass
 
-                notify_mods(
-                    f"✅ Модератор @{mod_name} одобрил объявление."
-                )
+                # Уведомление модераторам
+                try:
+                    notify_mods(
+                        f"✅ Модератор @{mod_name} одобрил объявление."
+                    )
 
+                except Exception:
+                    pass
+
+                # Убираем кнопки
                 try:
                     bot.edit_message_reply_markup(
                         chat_id=call.message.chat.id,
                         message_id=call.message.message_id,
                         reply_markup=None
                     )
+
                 except Exception:
                     pass
 
+                # Удаляем из очереди
                 pending_posts.pop(post_id, None)
 
             except Exception as e:
+
                 bot.send_message(
                     call.message.chat.id,
-                    f"❌ Ошибка публикации:\n{e}"
+                    f"❌ Ошибка отправки в канал:\n{e}"
                 )
 
         # =========================
-        # ОТКАЗ
+        # ОТКЛОНЕНИЕ ПОСТА
         # =========================
 
         elif data_cb.startswith("reject_"):
@@ -258,11 +285,11 @@ def callback_inline(call):
 
             bot.send_message(
                 call.message.chat.id,
-                "✍️ Введите причину отказа:"
+                "✍️ Введите причину отказа (будет отправлено пользователю):"
             )
 
         # =========================
-        # СООБЩЕНИЕ УЧАСТНИКУ
+        # СООБЩЕНИЕ ПОЛЬЗОВАТЕЛЮ
         # =========================
 
         elif data_cb.startswith("msg_"):
@@ -285,24 +312,29 @@ def callback_inline(call):
 
             bot.send_message(
                 call.message.chat.id,
-                "✍️ Напишите сообщение:"
+                "✍️ Напишите текст сообщения для участника:"
             )
+
+    # =========================
+    # ОБЩАЯ ОШИБКА
+    # =========================
 
     except Exception as e:
 
         try:
             bot.answer_callback_query(
                 call.id,
-                "⚠️ Системная ошибка!",
+                "⚠️ Системный сбой!",
                 show_alert=True
             )
+
         except Exception:
             pass
 
         print(f"Callback error: {e}")
 
 
-# 🔥 /START
+# 🔥 КОМАНДА /START
 
 @bot.message_handler(commands=['start'])
 def start_command(message):
@@ -313,17 +345,21 @@ def start_command(message):
         "Привет! 👋\n"
         "Ты попал в Б/У рынок ASTANA.\n\n"
         "📌 Для подачи объявления обязательно укажи:\n"
-        "1. Куплю / Продам\n"
+        "1. Куплю / Продам / Набор в ТК или в семью\n"
         "2. Цена / Бюджет\n"
-        "3. Контакт (@username)\n\n"
-        "❗ Без username объявление будет отклонено.\n\n"
+        "3. Контакт (username, пример: @cripta527)\n\n"
+        "❗ Важно:\n"
+        "Без username заявка будет отклонена.\n"
+        "Если у тебя не установлен @username в профиле Telegram — бот НЕ пропустит объявление.\n\n"
+        "🚫 Не спамить\n"
+        "Разрешена реклама семьи / СК / ТК и т.д.\n\n"
         "📩 Связь: @cripta527"
     )
 
     bot.send_message(message.chat.id, start_text)
 
 
-# 🔥 /HELP
+# 🔥 ПАНЕЛЬ /HELP
 
 @bot.message_handler(commands=['help'])
 def help_command(message):
@@ -333,24 +369,22 @@ def help_command(message):
     if uid not in MODS and uid != SUPERADMIN:
         return
 
-    text = (
-        "🛠 *Панель модератора*\n\n"
-        "🔹 /id @user\n"
-        "🔹 /mute @user время причина\n"
-        "🔹 /unmute @user\n"
-        "🔹 /ban @user\n"
-        "🔹 /unban @user\n"
-        "🔹 /nlist\n"
-    )
+    text = "🛠 **Панель модератора:**\n"
+    text += "🔹 `/id @user` — узнать ID участника\n"
+    text += "🔹 `/mute @user время причина` — выдать мут\n"
+    text += "🔹 `/unmute @user` — снять мут\n"
+    text += "🔹 `/ban @user` — бан навсегда\n"
+    text += "🔹 `/unban @user` — разбан\n"
+    text += "🔹 `/nlist` — список модераторов\n\n"
+
+    text += "💬 *Все сообщения модераторов в этом чате видят другие модераторы.*\n"
 
     if uid == SUPERADMIN:
-        text += (
-            "\n👑 *SUPERADMIN*\n"
-            "🔸 /setadmin @user\n"
-            "🔸 /deladmin @user\n"
-            "🔸 /all\n"
-            "🔸 /stats\n"
-        )
+        text += "\n👑 **Команды Создателя:**\n"
+        text += "🔸 `/setadmin @user` — выдать права модера\n"
+        text += "🔸 `/deladmin @user` — забрать права\n"
+        text += "🔸 `/all` — рассылка (фото/видео/текст)\n"
+        text += "🔸 `/stats` — статистика\n"
 
     bot.send_message(
         message.chat.id,
@@ -359,7 +393,7 @@ def help_command(message):
     )
 
 
-# 🔥 /ID
+# 🔥 УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ
 
 @bot.message_handler(commands=['id'])
 def get_user_id_cmd(message):
@@ -370,24 +404,25 @@ def get_user_id_cmd(message):
     args = message.text.split()
 
     if len(args) < 2:
-        bot.send_message(
+        return bot.send_message(
             message.chat.id,
-            "❌ Формат: /id @user"
+            "❌ Формат: `/id @user`",
+            parse_mode="Markdown"
         )
-        return
 
     target_id = get_user_id(args[1])
 
     if target_id:
         bot.send_message(
             message.chat.id,
-            f"🔍 ID: `{target_id}`",
+            f"🔍 ID пользователя {args[1]}: `{target_id}`",
             parse_mode="Markdown"
         )
+
     else:
         bot.send_message(
             message.chat.id,
-            "❌ Пользователь не найден."
+            "❌ Пользователь не найден в базе."
         )
 
 
@@ -402,17 +437,19 @@ def mute_command(message):
     args = message.text.split(maxsplit=3)
 
     if len(args) < 3:
-        bot.send_message(
+        return bot.send_message(
             message.chat.id,
-            "❌ Формат: /mute @user минуты причина"
+            "❌ Формат: `/mute @user время_в_минутах причина`",
+            parse_mode="Markdown"
         )
-        return
 
     target_id = get_user_id(args[1])
 
     if not target_id:
-        bot.send_message(message.chat.id, "❌ Пользователь не найден.")
-        return
+        return bot.send_message(
+            message.chat.id,
+            "❌ Пользователь не найден."
+        )
 
     try:
         minutes = int(args[2])
@@ -424,22 +461,25 @@ def mute_command(message):
 
         bot.send_message(
             message.chat.id,
-            f"✅ Мут выдан на {minutes} мин.\nПричина: {reason}"
+            f"✅ Пользователь {args[1]} замучен на {minutes} мин.\n📋 Причина: {reason}"
         )
 
         try:
             bot.send_message(
                 int(target_id),
-                f"🔇 Вам выдан мут на {minutes} мин.\nПричина: {reason}"
+                f"🔇 Вы получили мут на {minutes} минут.\n📋 Причина: {reason}"
             )
-        except Exception:
+
+        except:
             pass
 
     except ValueError:
         bot.send_message(
             message.chat.id,
-            "❌ Время должно быть числом."
+            "❌ Ошибка: Время должно быть числом."
         )
+
+        return
 
 
 # 🔥 UNMUTE
@@ -453,8 +493,11 @@ def unmute_command(message):
     args = message.text.split()
 
     if len(args) < 2:
-        bot.send_message(message.chat.id, "❌ Формат: /unmute @user")
-        return
+        return bot.send_message(
+            message.chat.id,
+            "❌ Формат: `/unmute @user`",
+            parse_mode="Markdown"
+        )
 
     target_id = get_user_id(args[1])
 
@@ -466,13 +509,22 @@ def unmute_command(message):
 
         bot.send_message(
             message.chat.id,
-            "✅ Мут снят."
+            f"✅ Мут с пользователя {args[1]} снят."
         )
+
+        try:
+            bot.send_message(
+                int(target_id),
+                "🔊 Ваш мут был снят."
+            )
+
+        except:
+            pass
 
     else:
         bot.send_message(
             message.chat.id,
-            "❌ У пользователя нет мута."
+            "❌ У этого пользователя нет мута."
         )
 
 
