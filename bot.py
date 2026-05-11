@@ -630,24 +630,31 @@ def setadmin_command(message):
     args = message.text.split()
 
     if len(args) < 2:
+
         return bot.send_message(
             message.chat.id,
             "❌ Формат: `/setadmin @user`",
             parse_mode="Markdown"
         )
 
-    username = args[1].replace("@", "")
-    uid = get_user_id(username)
+    # Берем как есть
+    username_input = args[1]
+
+    # Ищем ID
+    uid = get_user_id(username_input)
 
     if not uid:
+
         return bot.send_message(
             message.chat.id,
-            "❌ Юзер не найден. Он должен запустить бота."
+            "❌ Юзер не найден.\n"
+            "Пользователь должен сначала запустить бота."
         )
 
     uid = int(uid)
 
     if uid in MODS:
+
         return bot.send_message(
             message.chat.id,
             "❌ Пользователь уже модератор."
@@ -657,18 +664,29 @@ def setadmin_command(message):
 
     save_data()
 
+    clean_username = username_input.replace("@", "")
+
     bot.send_message(
         message.chat.id,
-        f"✅ @{username} теперь модератор."
+        f"✅ @{clean_username} теперь модератор."
     )
 
     try:
+
         bot.send_message(
             uid,
-            "🎉 Поздравляем! Вы назначены модератором.\n\n📌 Ознакомьтесь с командами: /help"
+            "🎉 Поздравляем!\n\n"
+            "Вы были назначены модератором.\n"
+            "Команды: /help"
         )
+
     except:
         pass
+
+    # Уведомление другим модерам
+    notify_mods(
+        f"👮 Пользователь @{clean_username} назначен модератором."
+    )
 
 
 @bot.message_handler(commands=['deladmin'])
