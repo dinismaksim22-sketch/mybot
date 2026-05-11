@@ -177,17 +177,19 @@ def mod_kb(post_id):
 def callback_inline(call):
 
     try:
+
         data_cb = call.data
-        mod_name = call.from_user.username or call.from_user.first_name
-        mod_tag = f"@{mod_name}"
+        moderator = call.from_user.username or call.from_user.first_name
+        mod_tag = f"@{moderator}"
 
         # =========================
-        # ОДОБРЕНИЕ ПОСТА
+        # ОДОБРЕНИЕ
         # =========================
 
         if data_cb.startswith("approve_"):
 
             post_id = data_cb.split("_")[1]
+
             post = pending_posts.get(post_id)
 
             if not post:
@@ -200,7 +202,12 @@ def callback_inline(call):
 
                 return
 
-            bot.answer_callback_query(call.id, "✅ Объявление одобрено")
+            user_tag = f"@{users.get(str(post['user_id']), {}).get('username', 'unknown')}"
+
+            bot.answer_callback_query(
+                call.id,
+                "✅ Объявление одобрено"
+            )
 
             try:
 
@@ -222,27 +229,31 @@ def callback_inline(call):
 
                 # Пользователь
                 try:
+
                     bot.send_message(
                         post["user_id"],
                         "✅ Ваше объявление успешно опубликовано!"
                     )
+
                 except:
                     pass
 
-                # ВСЕМ МОДЕРАМ
-                notify_mods(
-                    f"✅ Модератор {mod_tag} ОДОБРИЛ объявление."
-                )
-
-                # Удаляем кнопки
+                # УДАЛЯЕМ КНОПКИ
                 try:
+
                     bot.edit_message_reply_markup(
                         chat_id=call.message.chat.id,
                         message_id=call.message.message_id,
                         reply_markup=None
                     )
+
                 except:
                     pass
+
+                # ВСЕМ МОДЕРАМ
+                notify_mods(
+                    f"✅ Модератор {mod_tag} ОДОБРИЛ объявление пользователя ID {post['user_id']}"
+                )
 
                 pending_posts.pop(post_id, None)
 
@@ -261,7 +272,9 @@ def callback_inline(call):
 
             post_id = data_cb.split("_")[1]
 
-            if post_id not in pending_posts:
+            post = pending_posts.get(post_id)
+
+            if not post:
 
                 bot.answer_callback_query(
                     call.id,
@@ -275,9 +288,21 @@ def callback_inline(call):
 
             bot.answer_callback_query(call.id)
 
+            # УДАЛЯЕМ КНОПКИ
+            try:
+
+                bot.edit_message_reply_markup(
+                    chat_id=call.message.chat.id,
+                    message_id=call.message.message_id,
+                    reply_markup=None
+                )
+
+            except:
+                pass
+
             # ВСЕМ МОДЕРАМ
             notify_mods(
-                f"❌ Модератор {mod_tag} начал ОТКАЗ объявления."
+                f"❌ Модератор {mod_tag} ОТКАЗАЛ объявление пользователя ID {post['user_id']}"
             )
 
             bot.send_message(
@@ -293,7 +318,9 @@ def callback_inline(call):
 
             post_id = data_cb.split("_")[1]
 
-            if post_id not in pending_posts:
+            post = pending_posts.get(post_id)
+
+            if not post:
 
                 bot.answer_callback_query(
                     call.id,
@@ -307,9 +334,11 @@ def callback_inline(call):
 
             bot.answer_callback_query(call.id)
 
+            # КНОПКИ НЕ УДАЛЯЕМ
+
             # ВСЕМ МОДЕРАМ
             notify_mods(
-                f"💬 Модератор {mod_tag} пишет сообщение участнику."
+                f"💬 Модератор {mod_tag} пишет сообщение пользователю ID {post['user_id']}"
             )
 
             bot.send_message(
@@ -322,11 +351,13 @@ def callback_inline(call):
         print(f"Callback error: {e}")
 
         try:
+
             bot.answer_callback_query(
                 call.id,
                 "⚠️ Системная ошибка",
                 show_alert=True
             )
+
         except:
             pass
 
