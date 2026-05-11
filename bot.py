@@ -202,8 +202,6 @@ def callback_inline(call):
 
                 return
 
-            user_tag = f"@{users.get(str(post['user_id']), {}).get('username', 'unknown')}"
-
             bot.answer_callback_query(
                 call.id,
                 "✅ Объявление одобрено"
@@ -238,22 +236,43 @@ def callback_inline(call):
                 except:
                     pass
 
-                # УДАЛЯЕМ КНОПКИ
+                # Username пользователя
+                user_username = "без username"
+
                 try:
 
-                    bot.edit_message_reply_markup(
-                        chat_id=call.message.chat.id,
-                        message_id=call.message.message_id,
-                        reply_markup=None
-                    )
+                    user_obj = bot.get_chat(post["user_id"])
+
+                    if user_obj.username:
+                        user_username = f"@{user_obj.username}"
 
                 except:
                     pass
 
                 # ВСЕМ МОДЕРАМ
-                notify_mods(
-                    f"✅ Модератор {mod_tag} ОДОБРИЛ объявление пользователя ID {post['user_id']}"
-                )
+                for m in MODS.union({SUPERADMIN}):
+
+                    try:
+
+                        bot.send_message(
+                            m,
+                            f"✅ Модератор {mod_tag} ОДОБРИЛ объявление пользователя {user_username}"
+                        )
+
+                    except:
+                        pass
+
+                    # Удаление кнопок у всех
+                    try:
+
+                        bot.edit_message_reply_markup(
+                            chat_id=m,
+                            message_id=call.message.message_id,
+                            reply_markup=None
+                        )
+
+                    except:
+                        pass
 
                 pending_posts.pop(post_id, None)
 
@@ -288,22 +307,43 @@ def callback_inline(call):
 
             bot.answer_callback_query(call.id)
 
-            # УДАЛЯЕМ КНОПКИ
+            # Username пользователя
+            user_username = "без username"
+
             try:
 
-                bot.edit_message_reply_markup(
-                    chat_id=call.message.chat.id,
-                    message_id=call.message.message_id,
-                    reply_markup=None
-                )
+                user_obj = bot.get_chat(post["user_id"])
+
+                if user_obj.username:
+                    user_username = f"@{user_obj.username}"
 
             except:
                 pass
 
             # ВСЕМ МОДЕРАМ
-            notify_mods(
-                f"❌ Модератор {mod_tag} ОТКАЗАЛ объявление пользователя ID {post['user_id']}"
-            )
+            for m in MODS.union({SUPERADMIN}):
+
+                try:
+
+                    bot.send_message(
+                        m,
+                        f"❌ Модератор {mod_tag} ОТКАЗАЛ объявление пользователя {user_username}"
+                    )
+
+                except:
+                    pass
+
+                # Удаление кнопок у всех
+                try:
+
+                    bot.edit_message_reply_markup(
+                        chat_id=m,
+                        message_id=call.message.message_id,
+                        reply_markup=None
+                    )
+
+                except:
+                    pass
 
             bot.send_message(
                 call.message.chat.id,
@@ -334,12 +374,31 @@ def callback_inline(call):
 
             bot.answer_callback_query(call.id)
 
-            # КНОПКИ НЕ УДАЛЯЕМ
+            # Username пользователя
+            user_username = "без username"
 
-            # ВСЕМ МОДЕРАМ
-            notify_mods(
-                f"💬 Модератор {mod_tag} пишет сообщение пользователю ID {post['user_id']}"
-            )
+            try:
+
+                user_obj = bot.get_chat(post["user_id"])
+
+                if user_obj.username:
+                    user_username = f"@{user_obj.username}"
+
+            except:
+                pass
+
+            # Кнопки НЕ удаляем
+            for m in MODS.union({SUPERADMIN}):
+
+                try:
+
+                    bot.send_message(
+                        m,
+                        f"💬 Модератор {mod_tag} пишет сообщение пользователю {user_username}"
+                    )
+
+                except:
+                    pass
 
             bot.send_message(
                 call.message.chat.id,
