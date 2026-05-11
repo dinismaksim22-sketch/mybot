@@ -179,6 +179,7 @@ def callback_inline(call):
     try:
         data_cb = call.data
         mod_name = call.from_user.username or call.from_user.first_name
+        mod_tag = f"@{mod_name}"
 
         # =========================
         # ОДОБРЕНИЕ ПОСТА
@@ -190,75 +191,70 @@ def callback_inline(call):
             post = pending_posts.get(post_id)
 
             if not post:
+
                 bot.answer_callback_query(
                     call.id,
-                    "❌ Ошибка: Пост не найден в очереди!",
+                    "❌ Пост уже обработан!",
                     show_alert=True
                 )
+
                 return
 
-            bot.answer_callback_query(
-                call.id,
-                "✅ Публикация..."
-            )
+            bot.answer_callback_query(call.id, "✅ Объявление одобрено")
 
             try:
 
-                # Публикация в канал
+                # Публикация
                 if post["type"] in ["text", "photo", "video"]:
 
                     bot.copy_message(
-                        chat_id=CHANNEL_ID,
-                        from_chat_id=post["chat_id"],
-                        message_id=post["message_id"]
+                        CHANNEL_ID,
+                        post["chat_id"],
+                        post["message_id"]
                     )
 
                 elif post["type"] == "album":
 
                     bot.send_media_group(
-                        chat_id=CHANNEL_ID,
-                        media=post["media"]
+                        CHANNEL_ID,
+                        post["media"]
                     )
 
-                # Сообщение пользователю
+                # Пользователь
                 try:
                     bot.send_message(
                         post["user_id"],
                         "✅ Ваше объявление успешно опубликовано!"
                     )
-                except Exception:
+                except:
                     pass
 
-                # Уведомление модераторам
-                try:
-                    notify_mods(
-                        f"✅ Модератор @{mod_name} одобрил объявление."
-                    )
-                except Exception:
-                    pass
+                # ВСЕМ МОДЕРАМ
+                notify_mods(
+                    f"✅ Модератор {mod_tag} ОДОБРИЛ объявление."
+                )
 
-                # Убираем кнопки
+                # Удаляем кнопки
                 try:
                     bot.edit_message_reply_markup(
                         chat_id=call.message.chat.id,
                         message_id=call.message.message_id,
                         reply_markup=None
                     )
-                except Exception:
+                except:
                     pass
 
-                # Удаляем из очереди
                 pending_posts.pop(post_id, None)
 
             except Exception as e:
 
                 bot.send_message(
                     call.message.chat.id,
-                    f"❌ Ошибка отправки в канал:\n{e}"
+                    f"❌ Ошибка публикации:\n{e}"
                 )
 
         # =========================
-        # ОТКЛОНЕНИЕ ПОСТА
+        # ОТКАЗ
         # =========================
 
         elif data_cb.startswith("reject_"):
@@ -269,7 +265,7 @@ def callback_inline(call):
 
                 bot.answer_callback_query(
                     call.id,
-                    "❌ Пост уже обработан.",
+                    "❌ Уже обработано!",
                     show_alert=True
                 )
 
@@ -279,13 +275,18 @@ def callback_inline(call):
 
             bot.answer_callback_query(call.id)
 
+            # ВСЕМ МОДЕРАМ
+            notify_mods(
+                f"❌ Модератор {mod_tag} начал ОТКАЗ объявления."
+            )
+
             bot.send_message(
                 call.message.chat.id,
-                "✍️ Введите причину отказа (будет отправлено пользователю):"
+                "✍️ Введите причину отказа:"
             )
 
         # =========================
-        # СООБЩЕНИЕ ПОЛЬЗОВАТЕЛЮ
+        # СООБЩЕНИЕ УЧАСТНИКУ
         # =========================
 
         elif data_cb.startswith("msg_"):
@@ -296,7 +297,7 @@ def callback_inline(call):
 
                 bot.answer_callback_query(
                     call.id,
-                    "❌ Пост уже обработан.",
+                    "❌ Уже обработано!",
                     show_alert=True
                 )
 
@@ -306,25 +307,27 @@ def callback_inline(call):
 
             bot.answer_callback_query(call.id)
 
-            bot.send_message(
-                call.message.chat.id,
-                "✍️ Напишите текст сообщения для участника:"
+            # ВСЕМ МОДЕРАМ
+            notify_mods(
+                f"💬 Модератор {mod_tag} пишет сообщение участнику."
             )
 
-    # =========================
-    # ОБЩАЯ ОШИБКА
-    # =========================
+            bot.send_message(
+                call.message.chat.id,
+                "✍️ Напишите сообщение участнику:"
+            )
 
     except Exception as e:
+
+        print(f"Callback error: {e}")
 
         try:
             bot.answer_callback_query(
                 call.id,
-                "⚠️ Системный сбой!",
+                "⚠️ Системная ошибка",
                 show_alert=True
             )
-
-        except Exception:
+        except:
             pass
 
         print(f"Callback error: {e}")
@@ -677,6 +680,7 @@ def deladmin_command(message):
     args = message.text.split()
 
     if len(args) < 2:
+
         return bot.send_message(
             message.chat.id,
             "❌ Формат: `/deladmin @user`",
@@ -687,6 +691,7 @@ def deladmin_command(message):
     uid = get_user_id(username)
 
     if not uid:
+
         return bot.send_message(
             message.chat.id,
             "❌ Юзер не найден."
@@ -695,27 +700,37 @@ def deladmin_command(message):
     uid = int(uid)
 
     if uid not in MODS:
+
         return bot.send_message(
             message.chat.id,
-            "❌ Не является модератором."
+            "❌ Пользователь не модератор."
         )
 
     MODS.discard(uid)
 
     save_data()
 
+    # Сообщение тому кто снял
     bot.send_message(
         message.chat.id,
-        f"✅ @{username} снят с должности."
+        f"✅ Вы успешно сняли @{username} с должности модератора."
     )
 
+    # Сообщение снятому модеру
     try:
+
         bot.send_message(
             uid,
-            "⚠️ К сожалению, вы сняты с должности модератора."
+            "⚠️ Вы были сняты с должности модератора."
         )
+
     except:
         pass
+
+    # Уведомление всем модерам
+    notify_mods(
+        f"⚠️ @{username} был снят с должности модератора."
+    )
 
 
 @bot.message_handler(commands=['all'])
