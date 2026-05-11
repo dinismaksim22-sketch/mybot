@@ -626,183 +626,93 @@ if not message.from_user.username:
     )  
     return  
 
-# 🌟 АЛЬБОМЫ (Медиагруппы)  
-if message.media_group_id:    
-    mg_id = message.media_group_id    
-    if mg_id not in media_groups:    
-        media_groups[mg_id] = [message]    
+  # 🌟 АЛЬБОМЫ (Медиагруппы)  
+    if message.media_group_id:    
+        mg_id = message.media_group_id    
+        if mg_id not in media_groups:    
+            media_groups[mg_id] = [message]    
+              
+            time.sleep(2)    
+                
+            msgs = media_groups.pop(mg_id, [])    
+            if not msgs: return    
+    
+            caption = ""    
+            caption_entities = None  # Сюда сохраним премиум-эмодзи и форматирование  
+            album_items = []    
+            for m in msgs:    
+                if m.caption:   
+                    caption = m.caption    
+                    caption_entities = m.caption_entities  # Захватываем сущности текста  
+                if m.photo:    
+                    album_items.append(types.InputMediaPhoto(m.photo[-1].file_id))    
+                elif m.video:    
+                    album_items.append(types.InputMediaVideo(m.video.file_id))    
+    
+            if "@" not in caption:    
+                bot.send_message(uid, "❌ Ошибка: В тексте объявления должен быть указан ваш контакт с @username!")    
+                return    
+    
+            if album_items:  
+                album_items[0].caption = caption   
+                album_items[0].caption_entities = caption_entities  # Привязываем эмодзи обратно  
+    
+            p_id = str(int(time.time() * 1000))    
+            pending_posts[p_id] = {    
+                "type": "album", "chat_id": message.chat.id, "user_id": uid,     
+                "media": album_items, "caption": caption    
+            }    
+    
+            # Отправка альбома модераторам  
+            for m_id in MODS.union({SUPERADMIN}):  
+                try:  
+                    # 1. Отправляем альбом с сохраненными эмодзи  
+                    bot.send_media_group(m_id, album_items)  
+                    # 2. Отправляем отдельное сообщение с инфой  
+                    info_text = f"📢 Новое объявление от @{message.from_user.username}\nID: <code>{uid}</code>"  
+                    bot.send_message(m_id, info_text, parse_mode="HTML", reply_markup=mod_kb(p_id))  
+                except Exception as e:  
+                    print(f"Ошибка отправки модератору {m_id}: {e}")  
+              
+            bot.send_message(uid, "⏳ Ожидайте, ваше объявление отправлено на проверку модераторам. Не нужно дублировать сообщение.")    
+        else:    
+            media_groups[mg_id].append(message)    
+        return    
+    
+    # 🌟 ОДИНОЧНЫЕ СООБЩЕНИЯ (Текст, 1 фото или 1 видео)  
+    else:    
+        caption = message.caption or message.text or ""    
           
-        time.sleep(2)    
-            
-        msgs = media_groups.pop(mg_id, [])    
-        if not msgs: return    
-
-        caption = ""    
-        caption_entities = None  # Сюда сохраним премиум-эмодзи и форматирование  
-        album_items = []    
-        for m in msgs:    
-            if m.caption:   
-                caption = m.caption    
-                caption_entities = m.caption_entities  # Захватываем сущности текста  
-            if m.photo:    
-                album_items.append(types.InputMediaPhoto(m.photo[-1].file_id))    
-            elif m.video:    
-                album_items.append(types.InputMediaVideo(m.video.file_id))    
-
         if "@" not in caption:    
             bot.send_message(uid, "❌ Ошибка: В тексте объявления должен быть указан ваш контакт с @username!")    
             return    
-
-        if album_items:  
-            album_items[0].caption = caption   
-            album_items[0].caption_entities = caption_entities  # Привязываем эмодзи обратно  
-
+    
         p_id = str(int(time.time() * 1000))    
+        c_type = message.content_type    
+        f_id = None    
+    
+        if message.photo: f_id = message.photo[-1].file_id    
+        elif message.video: f_id = message.video.file_id    
+    
         pending_posts[p_id] = {    
-            "type": "album", "chat_id": message.chat.id, "user_id": uid,     
-            "media": album_items, "caption": caption    
+            "type": c_type, "chat_id": message.chat.id, "user_id": uid,    
+            "message_id": message.message_id, "caption": caption, "file_id": f_id    
         }    
-
-        # Отправка альбома модераторам  
+          
+                # Отправка контента модераторам  
         for m_id in MODS.union({SUPERADMIN}):  
             try:  
-                # 1. Отправляем альбом с сохраненными эмодзи  
-                bot.send_media_group(m_id, album_items)  
-                # 2. Отправляем отдельное сообщение с инфой  
+                # 1. Идеально копируем сообщение (все эмодзи и шрифты сохранятся, плашки "Переслано" не будет)  
+                bot.copy_message(m_id, message.chat.id, message.message_id)  
+                  
+                # 2. Отправляем отдельное сообщение с инфой и кнопками  
                 info_text = f"📢 Новое объявление от @{message.from_user.username}\nID: <code>{uid}</code>"  
                 bot.send_message(m_id, info_text, parse_mode="HTML", reply_markup=mod_kb(p_id))  
             except Exception as e:  
                 print(f"Ошибка отправки модератору {m_id}: {e}")  
-          
-        bot.send_message(uid, "⏳ Ожидайте, ваше объявление отправлено на проверку модераторам. Не нужно дублировать сообщение.")    
-    else:    
-        media_groups[mg_id].append(message)    
-    return    
-
-# 🌟 ОДИНОЧНЫЕ СООБЩЕНИЯ (Текст, 1 фото или 1 видео)  
-else:    
-    caption = message.caption or message.text or ""    
-      
-    if "@" not in caption:    
-        bot.send_message(uid, "❌ Ошибка: В тексте объявления должен быть указан ваш контакт с @username!")    
-        return    
-
-    p_id = str(int(time.time() * 1000))    
-    c_type = message.content_type    
-    f_id = None    
-
-    if message.photo: f_id = message.photo[-1].file_id    
-    elif message.video: f_id = message.video.file_id    
-
-    pending_posts[p_id] = {    
-        "type": c_type, "chat_id": message.chat.id, "user_id": uid,    
-        "message_id": message.message_id, "caption": caption, "file_id": f_id    
-    }    
-      
-    # Отправка контента модераторам  
-    for m_id in MODS.union({SUPERADMIN}):  
-        try:  
-            # 1. Идеально копируем сообщение (все эмодзи и шрифты сохранятся, плашки "Переслано" не будет)  
-            bot.copy_message(m_id, message.chat.id, message.message_id)  
               
-            # 2. Отправляем отдельное сообщение с инфой и кнопками  
-            info_text = f"📢 Новое объявление от @{message.from_user.username}\nID: <code>{uid}</code>"  
-            bot.send_message(m_id, info_text, parse_mode="HTML", reply_markup=mod_kb(p_id))  
-        except Exception as e:  
-            print(f"Ошибка отправки модератору {m_id}: {e}")  
-          
-    bot.send_message(uid, "⏳ Ожидайте, ваше объявление отправлено на проверку модераторам. Не нужно дублировать сообщение.")
-
-if name == 'main':
-print("Бот запущен...")
-bot.infinity_polling()
-# 🌟 АЛЬБОМЫ (Медиагруппы)  
-if message.media_group_id:    
-    mg_id = message.media_group_id    
-    if mg_id not in media_groups:    
-        media_groups[mg_id] = [message]    
-          
-        time.sleep(2)    
-            
-        msgs = media_groups.pop(mg_id, [])    
-        if not msgs: return    
-
-        caption = ""    
-        caption_entities = None  # Сюда сохраним премиум-эмодзи и форматирование  
-        album_items = []    
-        for m in msgs:    
-            if m.caption:   
-                caption = m.caption    
-                caption_entities = m.caption_entities  # Захватываем сущности текста  
-            if m.photo:    
-                album_items.append(types.InputMediaPhoto(m.photo[-1].file_id))    
-            elif m.video:    
-                album_items.append(types.InputMediaVideo(m.video.file_id))    
-
-        if "@" not in caption:    
-            bot.send_message(uid, "❌ Ошибка: В тексте объявления должен быть указан ваш контакт с @username!")    
-            return    
-
-        if album_items:  
-            album_items[0].caption = caption   
-            album_items[0].caption_entities = caption_entities  # Привязываем эмодзи обратно  
-
-        p_id = str(int(time.time() * 1000))    
-        pending_posts[p_id] = {    
-            "type": "album", "chat_id": message.chat.id, "user_id": uid,     
-            "media": album_items, "caption": caption    
-        }    
-
-        # Отправка альбома модераторам  
-        for m_id in MODS.union({SUPERADMIN}):  
-            try:  
-                # 1. Отправляем альбом с сохраненными эмодзи  
-                bot.send_media_group(m_id, album_items)  
-                # 2. Отправляем отдельное сообщение с инфой  
-                info_text = f"📢 Новое объявление от @{message.from_user.username}\nID: <code>{uid}</code>"  
-                bot.send_message(m_id, info_text, parse_mode="HTML", reply_markup=mod_kb(p_id))  
-            except Exception as e:  
-                print(f"Ошибка отправки модератору {m_id}: {e}")  
-          
-        bot.send_message(uid, "⏳ Ожидайте, ваше объявление отправлено на проверку модераторам. Не нужно дублировать сообщение.")    
-    else:    
-        media_groups[mg_id].append(message)    
-    return    
-
-# 🌟 ОДИНОЧНЫЕ СООБЩЕНИЯ (Текст, 1 фото или 1 видео)  
-else:    
-    caption = message.caption or message.text or ""    
-      
-    if "@" not in caption:    
-        bot.send_message(uid, "❌ Ошибка: В тексте объявления должен быть указан ваш контакт с @username!")    
-        return    
-
-    p_id = str(int(time.time() * 1000))    
-    c_type = message.content_type    
-    f_id = None    
-
-    if message.photo: f_id = message.photo[-1].file_id    
-    elif message.video: f_id = message.video.file_id    
-
-    pending_posts[p_id] = {    
-        "type": c_type, "chat_id": message.chat.id, "user_id": uid,    
-        "message_id": message.message_id, "caption": caption, "file_id": f_id    
-    }    
-      
-    # Отправка контента модераторам  
-    for m_id in MODS.union({SUPERADMIN}):  
-        try:  
-            # 1. Идеально копируем сообщение (все эмодзи и шрифты сохранятся, плашки "Переслано" не будет)  
-            bot.copy_message(m_id, message.chat.id, message.message_id)  
-              
-            # 2. Отправляем отдельное сообщение с инфой и кнопками  
-            info_text = f"📢 Новое объявление от @{message.from_user.username}\nID: <code>{uid}</code>"  
-            bot.send_message(m_id, info_text, parse_mode="HTML", reply_markup=mod_kb(p_id))  
-        except Exception as e:  
-            print(f"Ошибка отправки модератору {m_id}: {e}")  
-          
-    bot.send_message(uid, "⏳ Ожидайте, ваше объявление отправлено на проверку модераторам. Не нужно дублировать сообщение.")
-
-if name == 'main':
-print("Бот запущен...")
-bot.infinity_polling()
+        bot.send_message(uid, "⏳ Ожидайте, ваше объявление отправлено на проверку модераторам. Не нужно дублировать сообщение.")  
+  
+if __name__ == '__main__':    
+    print("Бот запущен...")    
+    bot.infinity_polling()  
