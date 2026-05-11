@@ -6,7 +6,7 @@ from telebot import types
 
 # --- КОНФИГУРАЦИЯ ---
 
-TOKEN = "YOUR_BOT_TOKEN"
+TOKEN = "8454142474:AAEK9wh21QXLE07pp33iwdtrFOJQ2zM23f4"
 bot = telebot.TeleBot(TOKEN)
 
 SUPERADMIN = 7905149857
