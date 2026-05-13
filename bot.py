@@ -239,23 +239,36 @@ def callback_inline(call):
             except:
                 pass
 
+            # =========================
             # АВТО ОТКАЗ ЕСЛИ ССЫЛКА
+            # =========================
+
             if contains_link and call.from_user.id != SUPERADMIN:
 
                 try:
 
                     bot.send_message(
                         post["user_id"],
-                        "❌ Ваше объявление было автоматически отклонено.\n\n"
-                        "📋 Причина: В объявлении обнаружена ссылка.\n"
-                        "Публикация ссылок запрещена."
+                        "❌ Ваше объявление автоматически отклонено.\n\n"
+                        "📋 Причина: обнаружена ссылка в объявлении."
                     )
 
                 except:
                     pass
 
-                # Всем модерам
+                # Убираем кнопки у ВСЕХ модеров
                 for m in MODS.union({SUPERADMIN}):
+
+                    try:
+
+                        bot.edit_message_reply_markup(
+                            chat_id=m,
+                            message_id=call.message.message_id,
+                            reply_markup=None
+                        )
+
+                    except:
+                        pass
 
                     try:
 
@@ -263,18 +276,6 @@ def callback_inline(call):
                             m,
                             f"🚫 Модератор {mod_tag} попытался одобрить объявление со ссылкой пользователя {user_username}.\n"
                             f"❌ Объявление автоматически отклонено."
-                        )
-
-                    except:
-                        pass
-
-                    # Удаляем кнопки
-                    try:
-
-                        bot.edit_message_reply_markup(
-                            chat_id=m,
-                            message_id=call.message.message_id,
-                            reply_markup=None
                         )
 
                     except:
@@ -298,14 +299,14 @@ def callback_inline(call):
             try:
 
                 # =========================
-                # ТЕКСТ
+                # ТЕКСТ С PREMIUM EMOJI
                 # =========================
 
                 if post["type"] == "text":
 
                     bot.send_message(
                         CHANNEL_ID,
-                        post["caption"],
+                        text=post["caption"],
                         entities=post.get("entities")
                     )
 
@@ -317,7 +318,7 @@ def callback_inline(call):
 
                     bot.send_photo(
                         CHANNEL_ID,
-                        post["file_id"],
+                        photo=post["file_id"],
                         caption=post["caption"],
                         caption_entities=post.get("caption_entities")
                     )
@@ -330,7 +331,7 @@ def callback_inline(call):
 
                     bot.send_video(
                         CHANNEL_ID,
-                        post["file_id"],
+                        video=post["file_id"],
                         caption=post["caption"],
                         caption_entities=post.get("caption_entities")
                     )
@@ -343,7 +344,7 @@ def callback_inline(call):
 
                     bot.send_media_group(
                         CHANNEL_ID,
-                        post["media"]
+                        media=post["media"]
                     )
 
                 # Пользователь
@@ -357,26 +358,28 @@ def callback_inline(call):
                 except:
                     pass
 
-                # ВСЕМ МОДЕРАМ
+                # =========================
+                # УДАЛЕНИЕ КНОПОК У ВСЕХ
+                # =========================
+
                 for m in MODS.union({SUPERADMIN}):
 
-                    try:
-
-                        bot.send_message(
-                            m,
-                            f"✅ Модератор {mod_tag} ОДОБРИЛ объявление пользователя {user_username}"
-                        )
-
-                    except:
-                        pass
-
-                    # Удаление кнопок у всех
                     try:
 
                         bot.edit_message_reply_markup(
                             chat_id=m,
                             message_id=call.message.message_id,
                             reply_markup=None
+                        )
+
+                    except:
+                        pass
+
+                    try:
+
+                        bot.send_message(
+                            m,
+                            f"✅ Модератор {mod_tag} ОДОБРИЛ объявление пользователя {user_username}"
                         )
 
                     except:
@@ -428,26 +431,28 @@ def callback_inline(call):
             except:
                 pass
 
-            # ВСЕМ МОДЕРАМ
+            # =========================
+            # УДАЛЯЕМ КНОПКИ У ВСЕХ
+            # =========================
+
             for m in MODS.union({SUPERADMIN}):
 
-                try:
-
-                    bot.send_message(
-                        m,
-                        f"❌ Модератор {mod_tag} ОТКАЗАЛ объявление пользователя {user_username}"
-                    )
-
-                except:
-                    pass
-
-                # Удаление кнопок у всех
                 try:
 
                     bot.edit_message_reply_markup(
                         chat_id=m,
                         message_id=call.message.message_id,
                         reply_markup=None
+                    )
+
+                except:
+                    pass
+
+                try:
+
+                    bot.send_message(
+                        m,
+                        f"❌ Модератор {mod_tag} ОТКАЗАЛ объявление пользователя {user_username}"
                     )
 
                 except:
