@@ -202,6 +202,94 @@ def callback_inline(call):
 
                 return
 
+            # =========================
+            # ПРОВЕРКА ССЫЛОК
+            # =========================
+
+            post_text = str(post.get("caption", "")).lower()
+
+            blocked_words = [
+                "http://",
+                "https://",
+                "t.me/",
+                "telegram.me/",
+                ".com",
+                ".ru",
+                ".net",
+                ".xyz",
+                "wa.me",
+                "discord.gg"
+            ]
+
+            contains_link = any(
+                word in post_text
+                for word in blocked_words
+            )
+
+            # Username пользователя
+            user_username = "без username"
+
+            try:
+
+                user_obj = bot.get_chat(post["user_id"])
+
+                if user_obj.username:
+                    user_username = f"@{user_obj.username}"
+
+            except:
+                pass
+
+            # АВТО ОТКАЗ ЕСЛИ ССЫЛКА
+            if contains_link and call.from_user.id != SUPERADMIN:
+
+                try:
+
+                    bot.send_message(
+                        post["user_id"],
+                        "❌ Ваше объявление было автоматически отклонено.\n\n"
+                        "📋 Причина: В объявлении обнаружена ссылка.\n"
+                        "Публикация ссылок запрещена."
+                    )
+
+                except:
+                    pass
+
+                # Всем модерам
+                for m in MODS.union({SUPERADMIN}):
+
+                    try:
+
+                        bot.send_message(
+                            m,
+                            f"🚫 Модератор {mod_tag} попытался одобрить объявление со ссылкой пользователя {user_username}.\n"
+                            f"❌ Объявление автоматически отклонено."
+                        )
+
+                    except:
+                        pass
+
+                    # Удаляем кнопки
+                    try:
+
+                        bot.edit_message_reply_markup(
+                            chat_id=m,
+                            message_id=call.message.message_id,
+                            reply_markup=None
+                        )
+
+                    except:
+                        pass
+
+                pending_posts.pop(post_id, None)
+
+                bot.answer_callback_query(
+                    call.id,
+                    "❌ Обнаружена ссылка!\nОбъявление автоматически отклонено.",
+                    show_alert=True
+                )
+
+                return
+
             bot.answer_callback_query(
                 call.id,
                 "✅ Объявление одобрено"
@@ -209,14 +297,47 @@ def callback_inline(call):
 
             try:
 
-                # Публикация
-                if post["type"] in ["text", "photo", "video"]:
+                # =========================
+                # ТЕКСТ
+                # =========================
 
-                    bot.copy_message(
+                if post["type"] == "text":
+
+                    bot.send_message(
                         CHANNEL_ID,
-                        post["chat_id"],
-                        post["message_id"]
+                        post["caption"],
+                        entities=post.get("entities")
                     )
+
+                # =========================
+                # ФОТО
+                # =========================
+
+                elif post["type"] == "photo":
+
+                    bot.send_photo(
+                        CHANNEL_ID,
+                        post["file_id"],
+                        caption=post["caption"],
+                        caption_entities=post.get("caption_entities")
+                    )
+
+                # =========================
+                # ВИДЕО
+                # =========================
+
+                elif post["type"] == "video":
+
+                    bot.send_video(
+                        CHANNEL_ID,
+                        post["file_id"],
+                        caption=post["caption"],
+                        caption_entities=post.get("caption_entities")
+                    )
+
+                # =========================
+                # АЛЬБОМ
+                # =========================
 
                 elif post["type"] == "album":
 
@@ -232,19 +353,6 @@ def callback_inline(call):
                         post["user_id"],
                         "✅ Ваше объявление успешно опубликовано!"
                     )
-
-                except:
-                    pass
-
-                # Username пользователя
-                user_username = "без username"
-
-                try:
-
-                    user_obj = bot.get_chat(post["user_id"])
-
-                    if user_obj.username:
-                        user_username = f"@{user_obj.username}"
 
                 except:
                     pass
